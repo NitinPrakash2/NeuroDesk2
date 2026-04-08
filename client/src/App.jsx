@@ -20,12 +20,10 @@ function AnimatedRoutes() {
           path="/app/*"
           element={
             <ProtectedRoute>
-              <MainLayout>
-                <Routes>
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="*" element={<Navigate to="/app/dashboard" />} />
-                </Routes>
-              </MainLayout>
+              <Routes>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="*" element={<Navigate to="/app/dashboard" />} />
+              </Routes>
             </ProtectedRoute>
           }
         />
