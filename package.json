@@ -1,0 +1,19 @@
+{
+  "name": "neurodesk",
+  "version": "1.0.0",
+  "scripts": {
+    "client": "cd client && npm run dev",
+    "server": "cd server && npm run dev",
+    "dev": "concurrently \"npm run client\" \"npm run server\""
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.27",
+    "concurrently": "^8.2.2",
+    "postcss": "^8.5.9",
+    "tailwindcss": "^4.2.2"
+  },
+  "dependencies": {
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.7.0"
+  }
+}
