@@ -17,7 +17,32 @@
   to   { opacity: 1; transform: scale(1); }
 }
 
+/* Chat Box Animations */
+@keyframes chatSlideIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px) translateX(20px) scale(0.95);
+  }
+  to   { 
+    opacity: 1; 
+    transform: translateY(0) translateX(0) scale(1);
+  }
+}
+
+@keyframes chatSlideOut {
+  from { 
+    opacity: 1; 
+    transform: translateY(0) translateX(0) scale(1);
+  }
+  to   { 
+    opacity: 0; 
+    transform: translateY(20px) translateX(20px) scale(0.95);
+  }
+}
+
 .animate-fadeInUp  { animation: fadeInUp  0.5s cubic-bezier(0.22,1,0.36,1) both; }
 .animate-slideInLeft { animation: slideInLeft 0.5s ease both; }
 .animate-fadeIn    { animation: fadeIn    0.5s ease both; }
 .animate-scaleIn   { animation: scaleIn   0.4s ease both; }
+.animate-chatSlideIn { animation: chatSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.animate-chatSlideOut { animation: chatSlideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1) both; }

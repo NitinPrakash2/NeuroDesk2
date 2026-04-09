@@ -8,7 +8,7 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import Tasks from './pages/Tasks';
+import Tasks from './pages/Task';
 
 function AnimatedRoutes() {
   const location = useLocation();
