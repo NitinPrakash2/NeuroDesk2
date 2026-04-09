@@ -1,15 +1,15 @@
+const dotenv = require('dotenv');
+dotenv.config();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const dotenv = require('dotenv');
 const { connectDB } = require('./config/db');
 const { createUsersTable } = require('./models/User');
 const { createTasksTable } = require('./models/Task');
 const { createNotesTable } = require('./models/Note');
 const { createMemoryTable } = require('./models/Memory');
 const { createGoalsTable } = require('./models/Goal');
-
-dotenv.config();
 
 const app = express();
 
