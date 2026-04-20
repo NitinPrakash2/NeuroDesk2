@@ -1,10 +1,33 @@
 const { sql } = require('../config/db');
 
 const FREE_MODELS = [
+  'google/gemma-4-26b-a4b-it:free',
+  'google/gemma-4-31b-it:free',
+  'arcee-ai/trinity-large-preview:free',
+  'arcee-ai/trinity-mini:free',
+  'nvidia/nemotron-nano-9b-v2:free',
+  'google/gemma-3-4b-it:free',
+  'nousresearch/hermes-3-llama-3.1-405b:free',
   'liquid/lfm-2.5-1.2b-instruct:free',
-  'openrouter/free',
 ];
 
+// Primary: Google Gemini (1500 free req/day)
+async function callGemini(messages) {
+  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === '<your_gemini_api_key>') throw new Error('No Gemini key');
+  const prompt = messages.map(m => `${m.role === 'system' ? 'System' : 'User'}: ${m.content}`).join('\n');
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error?.message || 'Gemini error');
+  const content = json.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!content) throw new Error('No content from Gemini');
+  return content.trim();
+}
+
+// Fallback: OpenRouter free models
 async function callOpenRouter(messages) {
   let lastError;
   for (const model of FREE_MODELS) {
@@ -14,21 +37,69 @@ async function callOpenRouter(messages) {
         headers: {
           'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://neurodesk.app',
+          'X-Title': 'NeuroDesk',
         },
-        body: JSON.stringify({ model, messages }),
+        body: JSON.stringify({ model, messages, max_tokens: 500 }),
       });
       const json = await res.json();
       const content = json.choices?.[0]?.message?.content;
       if (!res.ok || !content) {
+        console.log(`Model ${model} failed:`, json.error?.message || 'No content');
         lastError = new Error(json.error?.message || 'No content');
         continue;
       }
       return content.trim();
     } catch (err) {
+      console.log(`Model ${model} error:`, err.message);
       lastError = err;
     }
   }
   throw lastError;
+}
+
+async function callAI(messages) {
+  try {
+    return await callGemini(messages);
+  } catch (err) {
+    console.log('Gemini failed, trying OpenRouter:', err.message);
+    return await callOpenRouter(messages);
+  }
+}
+
+// Rule-based fallback when all AI models are unavailable
+function ruleBasedResponse(message, memories) {
+  const msg = message.toLowerCase();
+
+  // Check if asking about stored memory
+  for (const m of memories) {
+    if (msg.includes(m.label.toLowerCase()) || msg.includes(m.type.toLowerCase())) {
+      return { intent: 'chat', action: 'answer', response: `Your ${m.label} is: ${m.value}`, save: null, record_data: null };
+    }
+  }
+
+  // Save password/credential
+  const saveMatch = msg.match(/(my .+ (?:password|pin|code|number|address|email) is (.+))/i);
+  if (saveMatch) {
+    const parts = message.split(' is ');
+    const label = parts[0].replace(/^my /i, '').trim();
+    const value = parts.slice(1).join(' is ').trim();
+    return { intent: 'memory', action: 'create', response: `Got it! I've saved your ${label}.`, save: { type: 'other', label, value }, record_data: null };
+  }
+
+  // Create task
+  if (msg.includes('remind') || msg.includes('todo') || msg.includes('task') || msg.includes('do ')) {
+    const title = message.replace(/remind me to|create a task|todo:|task:/gi, '').trim();
+    return { intent: 'task', action: 'create', response: `Task created: "${title}"`, save: null, record_data: { title, priority: 'medium' } };
+  }
+
+  // Create note
+  if (msg.includes('note') || msg.includes('write down') || msg.includes('save this')) {
+    const title = message.replace(/note:|write down|save this/gi, '').trim();
+    return { intent: 'note', action: 'create', response: `Note saved: "${title}"`, save: null, record_data: { title, content: message, color: 'orange' } };
+  }
+
+  return { intent: 'chat', action: 'answer', response: 'AI models are currently rate-limited. Please try again in a few minutes or add credits to your OpenRouter account.', save: null, record_data: null };
 }
 
 const processMessage = async (req, res) => {
@@ -76,14 +147,18 @@ Examples:
 
 Return ONLY valid JSON. No markdown.`;
 
-    const raw = await callOpenRouter([
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: message },
-    ]);
-
-    // Parse JSON — strip markdown fences if any
-    const jsonStr = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-    const parsed = JSON.parse(jsonStr);
+    let parsed;
+    try {
+      const raw = await callAI([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message },
+      ]);
+      const jsonStr = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+      parsed = JSON.parse(jsonStr);
+    } catch (aiErr) {
+      console.log('All AI models failed, using rule-based fallback:', aiErr.message);
+      parsed = ruleBasedResponse(message, memories);
+    }
 
     let savedRecord = null;
 
@@ -150,11 +225,21 @@ const getSuggestions = async (req, res) => {
   try {
     const tasks = await sql`SELECT title, status, priority FROM tasks WHERE user_id = ${req.user.id} LIMIT 10`;
     const goals = await sql`SELECT title, progress FROM goals WHERE user_id = ${req.user.id} LIMIT 5`;
-    const raw = await callOpenRouter([
-      { role: 'system', content: 'Give 3 short actionable productivity suggestions. Return ONLY a JSON array of 3 strings, no markdown.' },
-      { role: 'user', content: `Tasks: ${JSON.stringify(tasks)}, Goals: ${JSON.stringify(goals)}` },
-    ]);
-    res.json({ suggestions: JSON.parse(raw.replace(/^```json\n?/, '').replace(/\n?```$/, '')) });
+    try {
+      const raw = await callAI([
+        { role: 'system', content: 'Give 3 short actionable productivity suggestions. Return ONLY a JSON array of 3 strings, no markdown.' },
+        { role: 'user', content: `Tasks: ${JSON.stringify(tasks)}, Goals: ${JSON.stringify(goals)}` },
+      ]);
+      const suggestions = JSON.parse(raw.replace(/^```json\n?/, '').replace(/\n?```$/, ''));
+      res.json({ suggestions });
+    } catch {
+      // Fallback static suggestions when AI is unavailable
+      res.json({ suggestions: [
+        'Review and prioritize your pending tasks',
+        'Break large goals into smaller actionable steps',
+        'Set a focused work session for your top priority task',
+      ]});
+    }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

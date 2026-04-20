@@ -19,22 +19,28 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [tasksRes, notesRes, goalsRes, memoriesRes, suggestionsRes] = await Promise.all([
+        const [tasksRes, notesRes, goalsRes, memoriesRes] = await Promise.all([
           api.get('/tasks'),
           api.get('/notes'),
           api.get('/goals'),
           api.get('/memories'),
-          api.get('/ai/suggestions'),
         ]);
         setTasks(tasksRes.data);
         setNotes(notesRes.data);
         setGoals(goalsRes.data);
         setMemories(memoriesRes.data);
-        setSuggestions(suggestionsRes.data.suggestions || []);
       } catch (err) {
         console.error('Error fetching data:', err);
       } finally {
         setLoading(false);
+      }
+
+      // Fetch AI suggestions separately so it doesn't break the dashboard
+      try {
+        const suggestionsRes = await api.get('/ai/suggestions');
+        setSuggestions(suggestionsRes.data.suggestions || []);
+      } catch (err) {
+        console.error('Error fetching AI suggestions:', err);
       }
     };
     fetchData();
