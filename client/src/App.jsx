@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Task';
+import Notes from './pages/Note';
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -24,7 +25,8 @@ function AnimatedRoutes() {
               {/* If you are using MainLayout for your sidebar, it usually wraps these Routes! */}
               <Routes>
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/tasks" element={<Tasks />} /> {/* 2. ADD THIS ROUTE */}
+                <Route path="/tasks" element={<Tasks />} />
+                <Route path="/notes" element={<Notes />} />
                 <Route path="*" element={<Navigate to="/app/dashboard" />} />
               </Routes>
             </ProtectedRoute>

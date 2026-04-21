@@ -135,13 +135,29 @@ async function callAI(messages) {
 }
 
 // Rule-based fallback when all AI models are unavailable
-function ruleBasedResponse(message, memories) {
+function ruleBasedResponse(message, memories, notes, tasks) {
   const msg = message.toLowerCase();
 
   // Check if asking about stored memory
   for (const m of memories) {
     if (msg.includes(m.label.toLowerCase()) || msg.includes(m.type.toLowerCase())) {
       return { intent: 'chat', action: 'answer', response: `Your ${m.label} is: ${m.value}`, save: null, record_data: null };
+    }
+  }
+
+  // Check if asking about notes
+  for (const n of notes) {
+    if (msg.includes(n.title.toLowerCase()) || (n.content && msg.includes(n.content.toLowerCase().substring(0, 20)))) {
+      return { intent: 'chat', action: 'answer', response: `From your notes: ${n.content || n.title} 📝`, save: null, record_data: null };
+    }
+  }
+
+  // Check if asking about tasks
+  if (msg.includes('task') || msg.includes('kaam') || msg.includes('pending') || msg.includes('do') || msg.includes('karna')) {
+    const pendingTasks = tasks.filter(t => t.status === 'pending');
+    if (pendingTasks.length > 0) {
+      const taskList = pendingTasks.slice(0, 5).map(t => t.title).join(', ');
+      return { intent: 'chat', action: 'answer', response: `You have ${pendingTasks.length} pending tasks: ${taskList} 📊`, save: null, record_data: null };
     }
   }
 
@@ -188,6 +204,18 @@ const processMessage = async (req, res) => {
     const memoryContext = memories.length
       ? `User's stored data:\n${memories.map(m => `- ${m.label}: ${m.value} (${m.type})`).join('\n')}`
       : 'No stored data yet.';
+
+    // Fetch user's notes for context
+    const notes = await sql`SELECT title, content, color FROM notes WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 50`;
+    const notesContext = notes.length
+      ? `User's saved notes:\n${notes.map(n => `- ${n.title}: ${n.content}`).join('\n')}`
+      : 'No notes saved yet.';
+
+    // Fetch user's tasks for context
+    const tasks = await sql`SELECT title, description, priority, status, due_date FROM tasks WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 50`;
+    const tasksContext = tasks.length
+      ? `User's tasks:\n${tasks.map(t => `- ${t.title}${t.description ? ': ' + t.description : ''} [${t.status}, ${t.priority} priority]`).join('\n')}`
+      : 'No tasks yet.';
 
     const buildSystemPrompt = (provider, modelName) => {
       const providerLabel = provider === 'gemini' ? `Google Gemini (${modelName})` : provider === 'groq' ? `${modelName} via Groq` : `${modelName} via OpenRouter`;
@@ -254,11 +282,22 @@ IDENTITY:
 
 ${memoryContext}
 
+${notesContext}
+
+${tasksContext}
+
 ACTIONS — detect and handle automatically (works in English AND Hinglish):
 1. SAVE info — detect keywords: "password", "number", "address", "account", "pin", "id", "pasword hai", "ka password", "mera number", "save kar", "note kar", "yaad rakh" → extract label+value and save to memory
 2. RECALL stored info — "what is my password", "mera password kya tha", "mera number batao" → answer from stored data
+   RECALL notes — "what is this", "what was that recipe", "tell me about", "kya tha wo", "batao wo formula", "what's the formula for" → search through user's notes and answer from there
+   RECALL tasks — "what are my tasks", "what do I need to do", "mera kya kaam hai", "pending tasks", "what's on my list" → search through user's tasks and answer from there
 3. CREATE task — "remind me", "todo", "aaj karna hai", "ye kaam karne hain", "mujhe yaad dilao", "schedule kar" → extract all tasks and create
-4. CREATE note — "note this", "write down", "note kar", "likh le", "save this" → create note
+4. CREATE note — IMPORTANT: Auto-detect when user shares important information that should be saved as a note:
+   - User shares ideas, thoughts, learnings, or important information
+   - User says: "note this", "write down", "note kar", "likh le", "save this", "remember this", "yaad rakh", "important hai"
+   - User shares: recipes, formulas, code snippets, quotes, definitions, explanations, study material, meeting notes, project ideas
+   - Examples: "The formula for area of circle is πr²", "Recipe: mix 2 cups flour with 1 cup water", "Important: meeting tomorrow at 3pm"
+   - Extract: title (short summary), content (full text), color (orange for general, blue for study, green for ideas, purple for important)
 5. CREATE goal — "my goal is", "mera goal hai", "I want to achieve", "mujhe achieve karna hai" → create goal
 6. ANYTHING ELSE → answer naturally like a knowledgeable desi friend
 
@@ -312,7 +351,20 @@ EXAMPLES:
 - "yaar mera instagram ka password Pass@123 hai" → {"intent":"memory","action":"create","response":"Safe kar diya bhai! Instagram password lock ho gaya 🔒","save":{"type":"password","label":"Instagram Password","value":"Pass@123"},"record_data":null}
 - "bhai aaj ye kaam karne hain: meeting at 3pm, report banana, aur mom ko call karna" → {"intent":"task","action":"create","response":"Teri saari important cheezein note kar li bhai! Meeting at 3pm, Report banana, Mom ko call karna — sab tasks mein add ho gaye ✅","save":null,"record_data":{"title":"Meeting at 3pm, Report banana, Mom ko call karna","priority":"high"}}
 - "note kar: mera bank account number 1234567890 hai" → {"intent":"memory","action":"create","response":"Done yaar! Bank account number safely save kar diya 🏦","save":{"type":"other","label":"Bank Account Number","value":"1234567890"},"record_data":null}
-- "mera gmail password kya tha" → {"intent":"chat","action":"answer","response":"Ruk bhai dekh raha hoon... (check stored memories and answer from there)","save":null,"record_data":null}`;
+- "mera gmail password kya tha" → {"intent":"chat","action":"answer","response":"Ruk bhai dekh raha hoon... (check stored memories and answer from there)","save":null,"record_data":null}
+- "what is the quadratic formula" → {"intent":"chat","action":"answer","response":"From your notes: x = (-b ± √(b²-4ac))/2a 📝","save":null,"record_data":null}
+- "what was that recipe" → {"intent":"chat","action":"answer","response":"Found it! Mix 2 cups flour, 1 cup water, 1 tsp salt, knead for 10 mins 🍞","save":null,"record_data":null}
+- "bhai wo formula kya tha" → {"intent":"chat","action":"answer","response":"Arre haan bhai, tera note dekha: x = (-b ± √(b²-4ac))/2a. Ye quadratic equation ka formula hai 📚","save":null,"record_data":null}
+- "tell me about newton's law" → {"intent":"chat","action":"answer","response":"From your notes: Object at rest stays at rest unless acted upon by force. That's Newton's First Law! ⚡","save":null,"record_data":null}
+- "what are my tasks" → {"intent":"chat","action":"answer","response":"Here's what you need to do: Call mom at 5pm, Grocery shopping, Gym session. You've got 3 pending tasks! 💪","save":null,"record_data":null}
+- "what do I need to do today" → {"intent":"chat","action":"answer","response":"Today's tasks: Meeting at 3pm, Submit assignment, Buy groceries. Let's crush them! 🚀","save":null,"record_data":null}
+- "bhai mera kya kaam hai" → {"intent":"chat","action":"answer","response":"Dekh bhai, tere paas ye kaam hain: Gym jaana, Assignment submit karna, Mom ko call karna. Chal shuru kar! 💪","save":null,"record_data":null}
+- "what's pending" → {"intent":"chat","action":"answer","response":"You have 5 pending tasks. Top priority: Submit project report, Client meeting prep. Want me to list all? 📋","save":null,"record_data":null}
+- "note this: the formula for quadratic equation is x = (-b ± √(b²-4ac))/2a" → {"intent":"note","action":"create","response":"Got it! I've saved the quadratic formula to your notes 📝","save":null,"record_data":{"title":"Quadratic Equation Formula","content":"x = (-b ± √(b²-4ac))/2a","color":"blue"}}
+- "write down: meeting with client tomorrow at 3pm, discuss project timeline and budget" → {"intent":"note","action":"create","response":"Noted! Saved your meeting details 📝","save":null,"record_data":{"title":"Client Meeting Tomorrow 3pm","content":"Meeting with client tomorrow at 3pm, discuss project timeline and budget","color":"purple"}}
+- "recipe: mix 2 cups flour, 1 cup water, 1 tsp salt, knead for 10 mins" → {"intent":"note","action":"create","response":"Recipe saved! 🍞","save":null,"record_data":{"title":"Dough Recipe","content":"Mix 2 cups flour, 1 cup water, 1 tsp salt, knead for 10 mins","color":"orange"}}
+- "important: project deadline is March 15th, need to submit final report" → {"intent":"note","action":"create","response":"Saved the important deadline info! 📝","save":null,"record_data":{"title":"Project Deadline - March 15th","content":"Project deadline is March 15th, need to submit final report","color":"purple"}}
+- "yaad rakh: Newton's first law - object at rest stays at rest unless acted upon by force" → {"intent":"note","action":"create","response":"Physics note save kar diya bhai! 📚","save":null,"record_data":{"title":"Newton's First Law","content":"Object at rest stays at rest unless acted upon by force","color":"blue"}}`;
     };
 
     let parsed;
@@ -328,7 +380,7 @@ EXAMPLES:
       parsed = JSON.parse(jsonMatch[0]);
     } catch (aiErr) {
       console.log('All AI models failed, using rule-based fallback:', aiErr.message);
-      parsed = ruleBasedResponse(message, memories);
+      parsed = ruleBasedResponse(message, memories, notes, tasks);
     }
 
     let savedRecord = null;
