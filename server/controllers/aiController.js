@@ -135,8 +135,24 @@ async function callAI(messages) {
 }
 
 // Rule-based fallback when all AI models are unavailable
-function ruleBasedResponse(message, memories, notes, tasks, files) {
+function ruleBasedResponse(message, memories, notes, tasks, files, goals = []) {
   const msg = message.toLowerCase();
+
+  // Check if asking about goals
+  if (msg.includes('goal') || msg.includes('mera goal') || msg.includes('goals') || msg.includes('target') || msg.includes('aim')) {
+    if (goals.length > 0) {
+      const goalList = goals.map(g => {
+        let deadline = '';
+        if (g.end_date) {
+          const daysLeft = Math.ceil((new Date(g.end_date) - new Date()) / (1000 * 60 * 60 * 24));
+          deadline = ` (${daysLeft > 0 ? daysLeft + ' days left' : 'overdue'})`;
+        }
+        return `"${g.title}" — ${g.progress}% done${deadline}`;
+      }).join(', ');
+      return { intent: 'chat', action: 'answer', response: `Tere ${goals.length} goals hain: ${goalList} 🎯`, save: null, record_data: null };
+    }
+    return { intent: 'chat', action: 'answer', response: 'Abhi koi goal set nahi hai. Goals page par ja aur apna pehla goal add kar! 🎯', save: null, record_data: null };
+  }
 
   // Check if asking about stored memory
   for (const m of memories) {
@@ -191,6 +207,55 @@ function ruleBasedResponse(message, memories, notes, tasks, files) {
     return { intent: 'note', action: 'create', response: `Note saved: "${title}"`, save: null, record_data: { title, content: message, color: 'orange' } };
   }
 
+  // Create goal — Hinglish + English goal detection
+  const goalKeywords = [
+    'mera goal', 'mujhe', 'i want to', 'i want to become', 'i want to learn', 'my goal is',
+    'banana hai', 'banna chahta', 'banna chahti', 'clear karna hai', 'clear krna h', 'clear krni h',
+    'ki taiyari', 'taiyari krni', 'taiyari karni', 'seekhna hai', 'sikhna hai',
+    'achieve karna', 'ban jaana', 'ban jaun', 'crack karna', 'crack krna',
+    'pass karna', 'qualify karna', 'job chahiye', 'career banana',
+  ];
+  const hasGoalKeyword = goalKeywords.some(k => msg.includes(k));
+  if (hasGoalKeyword) {
+    // Extract duration
+    const durMatch = message.match(/(\d+)\s*(shaal|saal|year|month|mahine|mahina|week|hafte|hafta|day|din)s?/i);
+    let duration = null;
+    if (durMatch) {
+      const num = durMatch[1];
+      const unit = durMatch[2].toLowerCase();
+      if (['shaal','saal','year'].includes(unit)) duration = `${num} year`;
+      else if (['mahine','mahina','month'].includes(unit)) duration = `${num} month`;
+      else if (['hafte','hafta','week'].includes(unit)) duration = `${num} week`;
+      else if (['din','day'].includes(unit)) duration = `${num} day`;
+    }
+    // Extract a clean title from common patterns
+    let title = message.trim();
+    const cleanPatterns = [
+      { re: /upsc/i, title: 'UPSC Clear' + (duration ? ` in ${duration}` : '') },
+      { re: /neet/i, title: 'Crack NEET Exam' },
+      { re: /jee/i, title: 'Crack JEE Exam' },
+      { re: /ssc/i, title: 'Crack SSC Exam' },
+      { re: /ias/i, title: 'Become IAS Officer' },
+      { re: /doctor|mbbs/i, title: 'Become a Doctor' },
+      { re: /engineer/i, title: 'Become an Engineer' },
+      { re: /ai|ml|machine learning/i, title: 'Become AI/ML Engineer' },
+      { re: /web dev|frontend|react/i, title: 'Become Web Developer' },
+      { re: /data science/i, title: 'Become Data Scientist' },
+      { re: /python/i, title: 'Learn Python Programming' },
+      { re: /english/i, title: 'Improve English Skills' },
+      { re: /fitness|gym|weight/i, title: 'Achieve Fitness Goal' },
+    ];
+    for (const p of cleanPatterns) {
+      if (p.re.test(message)) { title = p.title; break; }
+    }
+    return {
+      intent: 'goal', action: 'create',
+      response: `Goal set kar diya bhai! 🎯 "${title}" — Goals page par ja ke apna AI roadmap dekh!`,
+      save: null,
+      record_data: { title, description: message, duration },
+    };
+  }
+
   return { intent: 'chat', action: 'answer', response: 'AI models are currently rate-limited. Please try again in a few minutes or add credits to your OpenRouter account.', save: null, record_data: null };
 }
 
@@ -231,6 +296,19 @@ const processMessage = async (req, res) => {
     const filesContext = files.length
       ? `User's uploaded files:\n${files.map(f => `- ${f.name} (${f.type}):\n${f.content?.substring(0, 500)}...`).join('\n\n')}`
       : 'No files uploaded yet.';
+
+    // Fetch user's goals for context
+    const goalsData = await sql`SELECT title, description, progress, status, duration, start_date, end_date FROM goals WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 10`;
+    const goalsContext = goalsData.length
+      ? `User's goals:\n${goalsData.map(g => {
+          let deadline = '';
+          if (g.end_date) {
+            const daysLeft = Math.ceil((new Date(g.end_date) - new Date()) / (1000 * 60 * 60 * 24));
+            deadline = ` | ${daysLeft > 0 ? daysLeft + ' days left' : Math.abs(daysLeft) + ' days overdue'}`;
+          }
+          return `- "${g.title}" [${g.status}, ${g.progress}% done${g.duration ? ', ' + g.duration : ''}${deadline}]`;
+        }).join('\n')}`
+      : 'No goals set yet.';
 
     const buildSystemPrompt = (provider, modelName) => {
       const providerLabel = provider === 'gemini' ? `Google Gemini (${modelName})` : provider === 'groq' ? `${modelName} via Groq` : `${modelName} via OpenRouter`;
@@ -303,6 +381,8 @@ ${tasksContext}
 
 ${filesContext}
 
+${goalsContext}
+
 ACTIONS — detect and handle automatically (works in English AND Hinglish):
 1. SAVE info — detect keywords: "password", "number", "address", "account", "pin", "id", "pasword hai", "ka password", "mera number", "save kar", "note kar", "yaad rakh" → extract label+value and save to memory
 2. RECALL stored info — "what is my password", "mera password kya tha", "mera number batao" → answer from stored data
@@ -316,8 +396,14 @@ ACTIONS — detect and handle automatically (works in English AND Hinglish):
    - User shares: recipes, formulas, code snippets, quotes, definitions, explanations, study material, meeting notes, project ideas
    - Examples: "The formula for area of circle is πr²", "Recipe: mix 2 cups flour with 1 cup water", "Important: meeting tomorrow at 3pm"
    - Extract: title (short summary), content (full text), color (orange for general, blue for study, green for ideas, purple for important)
-5. CREATE goal — "my goal is", "mera goal hai", "I want to achieve", "mujhe achieve karna hai" → create goal
-6. ANYTHING ELSE → answer naturally like a knowledgeable desi friend
+5. CREATE goal — detect ANY message where user expresses a personal ambition, aspiration, or long-term goal:
+   Triggers: "my goal is", "mera goal hai", "I want to achieve", "mujhe achieve karna hai", "mujhe X banana hai", "mujhe X clear karna hai", "mujhe X ki taiyari karni hai", "I want to become", "I want to learn", "mujhe X seekhna hai", "banna chahta hoon", "ban jaana chahta", "taiyari karni hai", "taiyari krni h", "pass karna hai", "crack karna hai", "qualify karna hai", "sikhna hai", "career banana hai", "job chahiye", "exam clear karna", "clear krni h", "clear krna h", "krni h"
+   CRITICAL: record_data.title MUST be a SHORT, CLEAN English title (3-6 words max), NOT the raw user message.
+   Examples of clean titles: "UPSC Clear in 1st Attempt", "Become AI ML Engineer", "Learn Web Development", "Crack NEET Exam", "Become a Doctor"
+   Extract duration from message — handle typos too: "1 saal"/"1 shaal"/"1 year"→"1 year", "6 mahine"/"6 month"→"6 months", "2 hafte"/"2 week"→"2 weeks", "30 din"/"30 day"→"30 days"
+   record_data format for goal: { "title": "SHORT CLEAN TITLE IN ENGLISH", "description": "original user message", "duration": "1 year" or null }
+6. RECALL goals — "mera goal kya hai", "what are my goals", "mera target", "goals batao", "what goals do I have" → answer from user's goals list above
+7. ANYTHING ELSE → answer naturally like a knowledgeable desi friend
 
 CRITICAL RULES — follow these without exception:
 - You MUST reply ONLY with a valid JSON object. No text before or after. No markdown. No explanation.
@@ -382,7 +468,11 @@ EXAMPLES:
 - "write down: meeting with client tomorrow at 3pm, discuss project timeline and budget" → {"intent":"note","action":"create","response":"Noted! Saved your meeting details 📝","save":null,"record_data":{"title":"Client Meeting Tomorrow 3pm","content":"Meeting with client tomorrow at 3pm, discuss project timeline and budget","color":"purple"}}
 - "recipe: mix 2 cups flour, 1 cup water, 1 tsp salt, knead for 10 mins" → {"intent":"note","action":"create","response":"Recipe saved! 🍞","save":null,"record_data":{"title":"Dough Recipe","content":"Mix 2 cups flour, 1 cup water, 1 tsp salt, knead for 10 mins","color":"orange"}}
 - "important: project deadline is March 15th, need to submit final report" → {"intent":"note","action":"create","response":"Saved the important deadline info! 📝","save":null,"record_data":{"title":"Project Deadline - March 15th","content":"Project deadline is March 15th, need to submit final report","color":"purple"}}
-- "yaad rakh: Newton's first law - object at rest stays at rest unless acted upon by force" → {"intent":"note","action":"create","response":"Physics note save kar diya bhai! 📚","save":null,"record_data":{"title":"Newton's First Law","content":"Object at rest stays at rest unless acted upon by force","color":"blue"}}`;
+- "yaad rakh: Newton's first law - object at rest stays at rest unless acted upon by force" → {"intent":"note","action":"create","response":"Physics note save kar diya bhai! 📚","save":null,"record_data":{"title":"Newton's First Law","content":"Object at rest stays at rest unless acted upon by force","color":"blue"}}
+- "mujhe upsc ki teyari krni h or mujhe upsc clear krna h 1st attempt me hi 1 shaal me" → {"intent":"goal","action":"create","response":"Wah bhai, ekdum solid goal hai! 🎯 UPSC 1st attempt mein clear karna — ek saal mein. Goal set kar diya, Goals page par ja ke apna AI roadmap dekh!","save":null,"record_data":{"title":"UPSC Clear in 1st Attempt","description":"UPSC ki taiyari karni hai aur 1st attempt mein hi clear karna hai 1 saal mein","duration":"1 year"}}
+- "mujhe doctor banna hai 2 saal mein" → {"intent":"goal","action":"create","response":"Goal set! 🎯 Doctor banna hai 2 saal mein — chal shuru karte hain!","save":null,"record_data":{"title":"Become a Doctor","description":"Mujhe doctor banna hai 2 saal mein","duration":"2 years"}}
+- "I want to become a web developer in 6 months" → {"intent":"goal","action":"create","response":"Awesome goal! 🎯 Web developer in 6 months — totally doable. Goal saved, check your Goals page for the AI roadmap!","save":null,"record_data":{"title":"Become Web Developer","description":"I want to become a web developer in 6 months","duration":"6 months"}}
+- "bhai mujhe neet crack karni hai" → {"intent":"goal","action":"create","response":"Solid goal bhai! 🎯 NEET crack karna — mehnat karni padegi but ho jayega. Goal set kar diya, Goals page par ja ke roadmap dekh!","save":null,"record_data":{"title":"Crack NEET Exam","description":"Mujhe NEET crack karni hai","duration":null}}`;
     };
 
     let parsed;
@@ -398,7 +488,7 @@ EXAMPLES:
       parsed = JSON.parse(jsonMatch[0]);
     } catch (aiErr) {
       console.log('All AI models failed, using rule-based fallback:', aiErr.message);
-      parsed = ruleBasedResponse(message, memories, notes, tasks, files);
+      parsed = ruleBasedResponse(message, memories, notes, tasks, files, goalsData);
     }
 
     let savedRecord = null;
@@ -434,12 +524,46 @@ EXAMPLES:
       savedRecord = note;
     }
 
-    // Save goal if detected
+    // Save goal if detected — auto-generate roadmap too
     if (parsed.intent === 'goal' && parsed.action === 'create' && parsed.record_data) {
-      const { title, description } = parsed.record_data;
+      const { title, description, duration } = parsed.record_data;
+      // Parse duration to end_date
+      function parseDur(d) {
+        if (!d) return null;
+        const s = d.toLowerCase();
+        const num = parseFloat(s.match(/[\d.]+/)?.[0] || 0);
+        if (!num) return null;
+        const end = new Date();
+        if (s.includes('year')) end.setFullYear(end.getFullYear() + num);
+        else if (s.includes('month')) end.setMonth(end.getMonth() + num);
+        else if (s.includes('week')) end.setDate(end.getDate() + num * 7);
+        else if (s.includes('day')) end.setDate(end.getDate() + num);
+        else return null;
+        return end;
+      }
+      const startDate = new Date();
+      const endDate = parseDur(duration);
+      // Auto-generate roadmap steps
+      let aiPlanSteps = null;
+      try {
+        const roadmapResult = await callAI([
+          { role: 'system', content: 'You are an expert career coach. Return ONLY a valid JSON array of 8-10 specific, actionable step strings. No markdown, no explanation.' },
+          { role: 'user', content: `Generate a step-by-step roadmap for: "${title}". Return ONLY a JSON array of strings.` },
+        ]);
+        let raw = roadmapResult.content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+        const match = raw.match(/\[[\s\S]*\]/);
+        if (match) {
+          const steps = JSON.parse(match[0]);
+          if (Array.isArray(steps) && steps.length > 0) {
+            aiPlanSteps = JSON.stringify(steps.map(s => ({ text: String(s).replace(/^Step \d+[:.\s]*/i, ''), completed: false })));
+          }
+        }
+      } catch (e) {
+        console.log('Roadmap generation failed for auto-goal:', e.message);
+      }
       const [goal] = await sql`
-        INSERT INTO goals (user_id, title, description)
-        VALUES (${userId}, ${title}, ${description || null})
+        INSERT INTO goals (user_id, title, description, duration, start_date, end_date, ai_plan)
+        VALUES (${userId}, ${title}, ${description || null}, ${duration || null}, ${startDate}, ${endDate || null}, ${aiPlanSteps || null})
         RETURNING *`;
       savedRecord = goal;
     }
@@ -485,6 +609,168 @@ const getSuggestions = async (req, res) => {
   }
 };
 
+const generateRoadmap = async (req, res) => {
+  const { goal } = req.body;
+  if (!goal) return res.status(400).json({ message: 'Goal is required' });
+
+  try {
+    const aiResult = await callAI([
+      {
+        role: 'system',
+        content: 'You are an expert career coach. The user will give you a goal. Return ONLY a valid JSON array of 8-10 specific, actionable step strings (like a syllabus). No markdown, no explanation, no extra text. Just the JSON array.',
+      },
+      {
+        role: 'user',
+        content: `Generate a step-by-step roadmap for this goal: "${goal}". Return ONLY a JSON array of strings.`,
+      },
+    ]);
+
+    let raw = aiResult.content.trim();
+    // Strip markdown code fences if present
+    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    // Extract JSON array
+    const match = raw.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error('No JSON array in response: ' + raw.substring(0, 100));
+    const steps = JSON.parse(match[0]);
+    if (!Array.isArray(steps) || steps.length === 0) throw new Error('Empty steps');
+    res.json({ steps });
+  } catch (err) {
+    console.error('Roadmap AI error, using fallback:', err.message);
+    res.json({ steps: getFallbackRoadmap(goal) });
+  }
+};
+
+function getFallbackRoadmap(goal) {
+  const g = (goal || '').toLowerCase();
+
+  if (g.includes('upsc') || g.includes('ias') || g.includes('civil service')) {
+    return [
+      'Understand UPSC syllabus: Prelims (GS Paper 1 & CSAT) and Mains (GS 1-4 + Optional)',
+      'Build NCERT foundation: Read Class 6-12 History, Geography, Polity, Economy, Science',
+      'Study standard books: Laxmikanth (Polity), Spectrum (Modern History), Ramesh Singh (Economy)',
+      'Start newspaper reading daily: The Hindu or Indian Express — focus on editorials & current affairs',
+      'Practice Prelims MCQs: Solve previous 10 years papers, target 100+ daily questions',
+      'Prepare Mains answer writing: Practice 150-200 word structured answers daily',
+      'Choose and master Optional subject (e.g. History, Geography, Public Administration)',
+      'Revise notes regularly: Make short notes for quick revision before exam',
+      'Take full mock tests: Attempt 3-4 full Prelims mocks per month',
+      'Prepare for Interview (Personality Test): Work on current affairs, communication & confidence',
+    ];
+  }
+  if (g.includes('neet') || (g.includes('doctor') && g.includes('mbbs'))) {
+    return [
+      'Master NCERT Biology (Class 11 & 12) — most important for NEET',
+      'Study NCERT Physics (Class 11 & 12) with H.C. Verma for concepts',
+      'Study NCERT Chemistry (Class 11 & 12) — Physical, Organic & Inorganic',
+      'Solve NEET previous year papers (last 10 years)',
+      'Practice 100+ MCQs daily topic-wise',
+      'Take weekly full mock tests and analyze mistakes',
+      'Focus on high-weightage chapters: Human Physiology, Genetics, Organic Chemistry',
+      'Revise NCERT thoroughly — 80% NEET questions are directly from NCERT',
+    ];
+  }
+  if (g.includes('jee') || g.includes('iit')) {
+    return [
+      'Master Class 11 & 12 Physics, Chemistry, Mathematics (NCERT + advanced)',
+      'Study HC Verma for Physics, MS Chauhan for Organic Chemistry, RD Sharma for Maths',
+      'Solve JEE Previous Year Papers (last 15 years)',
+      'Practice 150+ problems daily across all 3 subjects',
+      'Focus on high-weightage topics: Calculus, Mechanics, Organic Chemistry',
+      'Take full mock tests weekly and analyze weak areas',
+      'Revise formulas and concepts daily with short notes',
+      'Join a test series (Allen, Resonance, or online platforms)',
+    ];
+  }
+  if (g.includes('ssc') || g.includes('cgl') || g.includes('chsl')) {
+    return [
+      'Understand SSC exam pattern: Tier 1 (Reasoning, GK, Maths, English)',
+      'Study Quantitative Aptitude: R.S. Aggarwal — Number System, Algebra, Geometry',
+      'Study Reasoning: Verbal & Non-Verbal (R.S. Aggarwal)',
+      'Improve English: Grammar rules, Vocabulary, Reading Comprehension',
+      'Study General Awareness: Current Affairs, Static GK, History, Geography',
+      'Solve SSC previous year papers (last 5 years)',
+      'Practice 100+ MCQs daily and take timed mock tests',
+      'Focus on speed and accuracy — time management is key',
+    ];
+  }
+  if (g.includes('web developer') || g.includes('frontend') || g.includes('react')) {
+    return [
+      'Learn HTML5 & CSS3 fundamentals (flexbox, grid, responsive design)',
+      'Master JavaScript ES6+: variables, functions, arrays, DOM manipulation',
+      'Learn Git & GitHub for version control',
+      'Study React.js: components, hooks, state management',
+      'Learn Node.js & Express.js for backend development',
+      'Understand databases: SQL (PostgreSQL) and NoSQL (MongoDB)',
+      'Build 3 full-stack projects for portfolio',
+      'Learn deployment: Vercel, Netlify, Railway',
+      'Study REST APIs and authentication (JWT)',
+      'Apply for jobs and contribute to open source',
+    ];
+  }
+  if (g.includes('ai') || g.includes('ml') || g.includes('machine learning') || g.includes('data science')) {
+    return [
+      'Learn Python: syntax, OOP, file handling, libraries',
+      'Study Mathematics: Linear Algebra, Calculus, Probability & Statistics',
+      'Master NumPy, Pandas, Matplotlib for data manipulation',
+      'Learn Machine Learning with Scikit-learn: regression, classification, clustering',
+      'Understand Deep Learning: Neural Networks, CNNs, RNNs with TensorFlow/PyTorch',
+      'Study Natural Language Processing (NLP) and transformers',
+      'Learn MLOps: model deployment, Docker, FastAPI',
+      'Build 3-5 end-to-end ML projects on Kaggle',
+      'Study Large Language Models (LLMs) and prompt engineering',
+      'Contribute to open source ML projects and apply for roles',
+    ];
+  }
+  if (g.includes('android') || g.includes('mobile') || g.includes('flutter') || g.includes('kotlin')) {
+    return [
+      'Learn Kotlin or Dart (Flutter) basics',
+      'Understand Android Studio / Flutter SDK setup',
+      'Study UI components: layouts, navigation, state management',
+      'Learn API integration and local storage (SQLite/Hive)',
+      'Understand Firebase: auth, Firestore, push notifications',
+      'Build 3 complete mobile apps for portfolio',
+      'Publish an app on Google Play Store',
+      'Learn testing and CI/CD for mobile apps',
+    ];
+  }
+  if (g.includes('devops') || g.includes('cloud') || g.includes('aws') || g.includes('docker')) {
+    return [
+      'Learn Linux fundamentals and shell scripting',
+      'Master Git, GitHub Actions for CI/CD',
+      'Learn Docker: containers, images, docker-compose',
+      'Study Kubernetes: pods, deployments, services',
+      'Learn AWS/GCP/Azure core services (EC2, S3, Lambda)',
+      'Understand Infrastructure as Code: Terraform, Ansible',
+      'Study monitoring: Prometheus, Grafana, ELK stack',
+      'Get certified: AWS Solutions Architect or CKA',
+    ];
+  }
+  if (g.includes('design') || g.includes('ui') || g.includes('ux') || g.includes('figma')) {
+    return [
+      'Learn design principles: typography, color theory, spacing',
+      'Master Figma: components, auto-layout, prototyping',
+      'Study UX research: user interviews, personas, journey maps',
+      'Learn wireframing and low-fidelity prototyping',
+      'Build a design system with reusable components',
+      'Create 5 case studies for your portfolio',
+      'Learn basic HTML/CSS to collaborate with developers',
+      'Apply for internships and freelance projects',
+    ];
+  }
+
+  // Generic fallback
+  return [
+    `Research and understand the fundamentals of: ${goal}`,
+    'Find the best learning resources (courses, books, YouTube)',
+    'Create a structured 3-month learning plan',
+    'Practice daily with hands-on projects',
+    'Join communities and find a mentor',
+    'Build 2-3 real projects to showcase skills',
+    'Get feedback and iterate on your work',
+    'Apply for opportunities and keep improving',
+  ];
+}
+
 const summarizePDF = async (req, res) => {
   try {
     const { text } = req.body;
@@ -518,4 +804,134 @@ const extractPoints = async (req, res) => {
   }
 };
 
-module.exports = { processMessage, getSuggestions, summarizePDF, extractPoints };
+// Helper: format days left in Hinglish or English
+function formatTimeLeft(daysLeft, lang) {
+  const abs = Math.abs(daysLeft);
+  if (lang === 'hi') {
+    if (daysLeft < 0) return `${abs} din overdue ho gaya`;
+    if (daysLeft === 0) return 'aaj deadline hai';
+    if (daysLeft <= 7) return `${daysLeft} din baaki hain`;
+    if (daysLeft <= 30) return `${Math.floor(daysLeft / 7)} hafte baaki hain`;
+    return `${Math.floor(daysLeft / 30)} mahine baaki hain`;
+  }
+  if (daysLeft < 0) return `${abs} days overdue`;
+  if (daysLeft === 0) return 'due today';
+  if (daysLeft <= 7) return `${daysLeft} days left`;
+  if (daysLeft <= 30) return `${Math.floor(daysLeft / 7)} weeks left`;
+  return `${Math.floor(daysLeft / 30)} months left`;
+}
+
+const goalChat = async (req, res) => {
+  const { goalId, message } = req.body;
+  if (!goalId || !message?.trim()) return res.status(400).json({ message: 'Goal ID and message required' });
+
+  try {
+    const userId = req.user.id;
+    const [goal] = await sql`SELECT * FROM goals WHERE id = ${goalId} AND user_id = ${userId}`;
+    if (!goal) return res.status(404).json({ message: 'Goal not found' });
+
+    const steps = goal.ai_plan ? JSON.parse(goal.ai_plan) : [];
+    const completedSteps = steps.filter(s => s.completed).length;
+    const totalSteps = steps.length;
+    const progress = goal.progress || 0;
+    const nextStep = steps.find(s => !s.completed);
+
+    // Deadline calculation
+    let daysLeft = null;
+    let timeProgress = 0;
+    let deadlineInfo = '';
+    if (goal.end_date) {
+      const now = new Date();
+      const end = new Date(goal.end_date);
+      const start = new Date(goal.start_date);
+      daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+      const totalDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+      const daysElapsed = Math.ceil((now - start) / (1000 * 60 * 60 * 24));
+      timeProgress = Math.min(100, Math.max(0, Math.round((daysElapsed / totalDays) * 100)));
+      deadlineInfo = `\nDeadline: ${formatTimeLeft(daysLeft, 'en')}. Time elapsed: ${timeProgress}%.`;
+    }
+    const stepsInfo = totalSteps > 0
+      ? `\nSteps: ${completedSteps}/${totalSteps} completed.${nextStep ? ' Next: ' + nextStep.text : ' All done!'}`
+      : '';
+
+    // Detect Hinglish/Hindi
+    const msg = message.toLowerCase();
+    const isHindi = /[\u0900-\u097F]/.test(message);
+    const isHinglish = isHindi || /\b(bhai|yaar|arre|haan|nahi|kya|baaki|kitna|kaise|haal|karna|krna|kaam|aage|sahi|theek|chal|mast|bas|thoda|batao|dekh|aur|toh|ek|aaj|kal|mahina|din|hafte|progress|goal|track|next|step|motivat)/.test(msg);
+    const lang = isHinglish ? 'hi' : 'en';
+
+    // Smart instant responses (no AI needed)
+    let smartResponse = null;
+
+    // Time left questions
+    if (/baaki|kitna.*time|time.*left|how.*long|deadline|din.*bache|mahine.*bache|left|remaining/.test(msg)) {
+      if (daysLeft !== null) {
+        smartResponse = lang === 'hi'
+          ? `Arre bhai! "${goal.title}" mein ${formatTimeLeft(daysLeft, 'hi')}. Abhi ${progress}% complete hai. ${daysLeft < 0 ? 'Deadline nikal gayi, jaldi kar!' : daysLeft <= 14 ? 'Jaldi kar bhai, time kam hai! ⚠️' : 'Chal, mehnat karte reh! 💪'}`
+          : `You have ${formatTimeLeft(daysLeft, 'en')} for "${goal.title}". Currently ${progress}% complete. ${daysLeft < 0 ? 'Deadline passed, hurry up!' : daysLeft <= 14 ? 'Time is running out! ⚠️' : 'Keep pushing! 💪'}`;
+      } else {
+        smartResponse = lang === 'hi'
+          ? `Bhai, is goal mein koi deadline set nahi hai. Goal add karte waqt duration daal dena! 📅`
+          : `No deadline set for this goal. Add a duration when creating goals! 📅`;
+      }
+    }
+    // Progress questions
+    else if (/progress|kitna.*hua|complete|percent|%|kahan.*hoon|how.*doing/.test(msg)) {
+      const behind = daysLeft !== null && progress < timeProgress - 15;
+      const ahead = daysLeft !== null && progress > timeProgress + 15;
+      smartResponse = lang === 'hi'
+        ? `Tera progress ${progress}% hai bhai! ${completedSteps}/${totalSteps} steps complete. ${behind ? `Thoda peeche hai — ${timeProgress}% time nikal gaya. Speed badha! 💨` : ahead ? 'Ekdum aage chal raha hai! Bahut badhiya! 🔥' : 'Sahi track par hai! 🎯'}`
+        : `You're at ${progress}% — ${completedSteps}/${totalSteps} steps done. ${behind ? `A bit behind (${timeProgress}% time elapsed). Speed up! 💨` : ahead ? 'Ahead of schedule! Amazing! 🔥' : 'Right on track! 🎯'}`;
+    }
+    // Next step / what to do
+    else if (/next|aage|kya.*karna|what.*do|kya.*step|suggest/.test(msg)) {
+      smartResponse = nextStep
+        ? (lang === 'hi'
+          ? `Agle step par focus kar bhai: "${nextStep.text}" 🎯 Ye complete kar, phir aage badhte hain!`
+          : `Focus on your next step: "${nextStep.text}" 🎯 Complete this, then move forward!`)
+        : (lang === 'hi'
+          ? `Wah bhai! Saare steps complete ho gaye! Goal finish karne ka time aa gaya! 🎉`
+          : `All steps are done! Time to wrap up the goal! 🎉`);
+    }
+    // On track?
+    else if (/track|sahi.*chal|theek.*chal|on.*track|behind|peeche/.test(msg)) {
+      if (daysLeft !== null) {
+        const diff = progress - timeProgress;
+        smartResponse = lang === 'hi'
+          ? (diff >= -10 ? `Haan bhai, tu sahi track par hai! Progress ${progress}%, time ${timeProgress}% — bilkul balanced! 🎯` : `Thoda peeche ho gaya bhai. ${progress}% complete, ${timeProgress}% time nikal gaya. Chal, speed badhate hain! 💨`)
+          : (diff >= -10 ? `Yes, you're on track! Progress ${progress}%, time ${timeProgress}% — perfectly balanced! 🎯` : `Slightly behind. ${progress}% done but ${timeProgress}% time elapsed. Let's speed up! 💨`);
+      }
+    }
+    // Motivation
+    else if (/motivat|lazy|tired|thak|bore|give.*up|chod|chhod|help/.test(msg)) {
+      smartResponse = lang === 'hi'
+        ? `Arre yaar, itna door aa gaya tu! ${progress}% complete ho gaya hai. Bas thoda aur — finish line dikhne wali hai! 🚀💪`
+        : `You've come so far — ${progress}% done! Just a little more to the finish line! 🚀💪`;
+    }
+
+    if (smartResponse) {
+      return res.json({ response: smartResponse, goalId, goalTitle: goal.title });
+    }
+
+    // AI fallback for complex questions
+    const systemPrompt = `You are a smart goal coach for NeuroDesk. Answer the user's question about their goal.
+
+Goal: "${goal.title}"
+Status: ${goal.status} | Progress: ${progress}%
+Duration: ${goal.duration || 'Not set'}${deadlineInfo}${stepsInfo}
+
+IMPORTANT: Detect the user's language. If they write in Hindi/Hinglish, reply in casual Hinglish like a desi friend (use: bhai, yaar, arre, haan, sahi hai, chill kar, ekdum, mast). If English, reply in English. Be concise and encouraging.`;
+
+    const aiResult = await callAI([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: message },
+    ]);
+
+    res.json({ response: aiResult.content.trim(), goalId, goalTitle: goal.title });
+  } catch (err) {
+    console.error('Goal chat error:', err.message);
+    res.status(500).json({ message: 'Failed to process goal chat', error: err.message });
+  }
+};
+
+module.exports = { processMessage, getSuggestions, summarizePDF, extractPoints, generateRoadmap, goalChat };
