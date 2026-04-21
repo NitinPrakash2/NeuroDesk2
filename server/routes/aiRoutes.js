@@ -1,6 +1,6 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const { processMessage, getSuggestions } = require('../controllers/aiController');
+const { processMessage, getSuggestions, summarizePDF, extractPoints } = require('../controllers/aiController');
 const { protect } = require('../middleware/authMiddleware');
 
 const aiLimiter = rateLimit({
@@ -15,5 +15,7 @@ router.use(aiLimiter);
 
 router.post('/chat', processMessage);
 router.get('/suggestions', getSuggestions);
+router.post('/summarize', summarizePDF);
+router.post('/extract', extractPoints);
 
 module.exports = router;

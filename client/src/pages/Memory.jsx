@@ -3,102 +3,109 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
-export default function Notes() {
+export default function Memory() {
   const { user } = useAuth();
-  const [notes, setNotes] = useState([]);
+  const [memories, setMemories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [editingNote, setEditingNote] = useState(null);
+  const [editingMemory, setEditingMemory] = useState(null);
   const [form, setForm] = useState({
-    title: '',
-    content: '',
-    color: 'orange'
+    type: 'password',
+    label: '',
+    value: ''
   });
 
-  const colors = [
-    { name: 'orange', bg: 'bg-[#FDF1EB]', border: 'border-orange-200', text: 'text-orange-600' },
-    { name: 'green', bg: 'bg-[#E8F8F0]', border: 'border-green-200', text: 'text-green-600' },
-    { name: 'blue', bg: 'bg-[#E6F0FF]', border: 'border-blue-200', text: 'text-blue-600' },
-    { name: 'purple', bg: 'bg-[#F3E8FF]', border: 'border-purple-200', text: 'text-purple-600' },
-    { name: 'pink', bg: 'bg-[#FFE8F0]', border: 'border-pink-200', text: 'text-pink-600' },
-    { name: 'yellow', bg: 'bg-[#FFF9E6]', border: 'border-yellow-200', text: 'text-yellow-600' }
+  const types = [
+    { value: 'password', label: 'Password', icon: '🔐', color: 'bg-red-50 text-red-600 border-red-200' },
+    { value: 'contact', label: 'Contact', icon: '📱', color: 'bg-blue-50 text-blue-600 border-blue-200' },
+    { value: 'fact', label: 'Fact', icon: '💡', color: 'bg-yellow-50 text-yellow-600 border-yellow-200' },
+    { value: 'reminder', label: 'Reminder', icon: '⏰', color: 'bg-purple-50 text-purple-600 border-purple-200' },
+    { value: 'date', label: 'Date', icon: '📅', color: 'bg-green-50 text-green-600 border-green-200' },
+    { value: 'other', label: 'Other', icon: '📝', color: 'bg-slate-50 text-slate-600 border-slate-200' }
   ];
 
   useEffect(() => {
-    fetchNotes();
+    fetchMemories();
   }, []);
 
-  const fetchNotes = async () => {
+  const fetchMemories = async () => {
     try {
-      const response = await api.get('/notes');
-      setNotes(response.data);
+      const response = await api.get('/memories');
+      setMemories(response.data);
     } catch (error) {
-      console.error('Error fetching notes:', error);
+      console.error('Error fetching memories:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateNote = () => {
-    setEditingNote(null);
-    setForm({ title: '', content: '', color: 'orange' });
+  const handleCreateMemory = () => {
+    setEditingMemory(null);
+    setForm({ type: 'password', label: '', value: '' });
     setShowModal(true);
   };
 
-  const handleEditNote = (note) => {
-    setEditingNote(note);
+  const handleEditMemory = (memory) => {
+    setEditingMemory(memory);
     setForm({
-      title: note.title,
-      content: note.content || '',
-      color: note.color || 'orange'
+      type: memory.type,
+      label: memory.label,
+      value: memory.value
     });
     setShowModal(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.title.trim()) return;
+    if (!form.label.trim() || !form.value.trim()) return;
 
     try {
-      if (editingNote) {
-        const response = await api.put(`/notes/${editingNote.id}`, form);
-        setNotes(prev => prev.map(n => n.id === editingNote.id ? response.data : n));
+      if (editingMemory) {
+        const response = await api.put(`/memories/${editingMemory.id}`, form);
+        setMemories(prev => prev.map(m => m.id === editingMemory.id ? response.data : m));
       } else {
-        const response = await api.post('/notes', form);
-        setNotes(prev => [response.data, ...prev]);
+        const response = await api.post('/memories', form);
+        setMemories(prev => [response.data, ...prev]);
       }
       setShowModal(false);
     } catch (error) {
-      console.error('Error saving note:', error);
+      console.error('Error saving memory:', error);
     }
   };
 
-  const deleteNote = async (noteId) => {
-    setNotes(prev => prev.filter(n => n.id !== noteId));
+  const deleteMemory = async (memoryId) => {
+    setMemories(prev => prev.filter(m => m.id !== memoryId));
     try {
-      await api.delete(`/notes/${noteId}`);
+      await api.delete(`/memories/${memoryId}`);
     } catch (error) {
-      console.error('Error deleting note:', error);
-      fetchNotes();
+      console.error('Error deleting memory:', error);
+      fetchMemories();
     }
   };
 
-  const filteredNotes = notes.filter(note =>
-    note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredMemories = memories.filter(memory =>
+    memory.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    memory.value.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    memory.type.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getColorClasses = (colorName) => {
-    const color = colors.find(c => c.name === colorName) || colors[0];
-    return color;
+  const getTypeInfo = (type) => {
+    return types.find(t => t.value === type) || types[types.length - 1];
   };
 
   const SkeletonCard = () => (
-    <div className="bg-slate-100 rounded-[20px] p-6 animate-pulse h-64">
-      <div className="h-4 bg-slate-200 rounded w-3/4 mb-4"></div>
-      <div className="h-3 bg-slate-200 rounded w-full mb-2"></div>
-      <div className="h-3 bg-slate-200 rounded w-5/6"></div>
+    <div className="bg-white rounded-[20px] p-6 border border-slate-100 animate-pulse">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-100"></div>
+          <div>
+            <div className="h-4 bg-slate-100 rounded w-24 mb-2"></div>
+            <div className="h-3 bg-slate-100 rounded w-16"></div>
+          </div>
+        </div>
+      </div>
+      <div className="h-3 bg-slate-100 rounded w-full"></div>
     </div>
   );
 
@@ -107,7 +114,6 @@ export default function Notes() {
       
       {/* ================= SIDEBAR ================= */}
       <aside className="w-[260px] bg-white h-full flex flex-col border-r border-slate-100 flex-shrink-0 z-10">
-        {/* Logo */}
         <div className="p-8 flex items-center gap-3">
           <div className="w-8 h-8 rounded-full flex items-center justify-center">
             <svg className="w-8 h-8 text-[#5A67D8]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
@@ -115,7 +121,6 @@ export default function Notes() {
           <span className="font-bold text-[19px] text-slate-800 tracking-tight">NeuroDesk</span>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           <Link to="/app/dashboard" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
@@ -125,7 +130,7 @@ export default function Notes() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
             Tasks
           </Link>
-          <Link to="/app/notes" className="flex items-center gap-3 px-4 py-3 bg-[#F4F4FF] text-[#5A67D8] rounded-xl font-bold text-sm transition-colors">
+          <Link to="/app/notes" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
             Notes
           </Link>
@@ -133,7 +138,7 @@ export default function Notes() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
             Files
           </Link>
-          <Link to="/app/memory" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
+          <Link to="/app/memory" className="flex items-center gap-3 px-4 py-3 bg-[#F4F4FF] text-[#5A67D8] rounded-xl font-bold text-sm transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
             Memory
           </Link>
@@ -147,7 +152,6 @@ export default function Notes() {
           </a>
         </nav>
 
-        {/* Profile Bottom */}
         <div className="p-3 m-4 border border-slate-100 rounded-2xl flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors">
           <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} alt={user?.name || 'User'} className="w-10 h-10 rounded-full" />
           <div className="flex-1">
@@ -164,26 +168,24 @@ export default function Notes() {
           
           {/* TOP BAR */}
           <header className="flex justify-between items-center mb-10">
-            {/* Search */}
             <div className="relative w-[350px]">
               <svg className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               <input 
                 type="text" 
-                placeholder="Search notes..." 
+                placeholder="Search memories..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-full text-sm font-medium focus:outline-none focus:border-indigo-500 shadow-sm" 
               />
             </div>
             
-            {/* Actions & Profile */}
             <div className="flex items-center gap-4">
               <button 
-                onClick={handleCreateNote}
+                onClick={handleCreateMemory}
                 className="flex items-center gap-2 px-4 py-2.5 bg-[#5A67D8] text-white rounded-xl text-sm font-bold hover:bg-indigo-600 transition-colors shadow-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Add Note
+                Add Memory
               </button>
               
               <div className="flex items-center gap-2 ml-2">
@@ -202,47 +204,63 @@ export default function Notes() {
           {/* WELCOME */}
           <div className="mb-8">
             <h1 className="text-[28px] font-bold text-slate-800 mb-2 flex items-center gap-2">
-              My Notes <span className="text-2xl">📝</span>
+              Memory Vault <span className="text-2xl">🧠</span>
             </h1>
-            <p className="text-slate-500 text-sm font-medium">Capture your thoughts and ideas</p>
+            <p className="text-slate-500 text-sm font-medium">Store and manage your important information securely</p>
           </div>
 
-          {/* NOTES GRID */}
+          {/* MEMORIES GRID */}
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
             </div>
-          ) : filteredNotes.length > 0 ? (
+          ) : filteredMemories.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredNotes.map((note) => {
-                const colorClass = getColorClasses(note.color);
+              {filteredMemories.map((memory) => {
+                const typeInfo = getTypeInfo(memory.type);
                 return (
                   <div 
-                    key={note.id} 
-                    className={`${colorClass.bg} p-6 rounded-[20px] shadow-sm border ${colorClass.border} hover:shadow-md transition-all duration-200 group relative min-h-[200px] flex flex-col`}
+                    key={memory.id} 
+                    className="bg-white p-6 rounded-[20px] shadow-sm border border-slate-100 hover:shadow-md transition-all duration-200 group relative"
                   >
-                    <h3 className="text-base font-bold text-slate-800 mb-3 pr-8">{note.title}</h3>
-                    <p className="text-sm text-slate-600 font-medium leading-relaxed flex-1 line-clamp-6">
-                      {note.content || 'No content'}
-                    </p>
-                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-200/50">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl ${typeInfo.color} flex items-center justify-center text-lg border`}>
+                          {typeInfo.icon}
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-800">{memory.label}</h3>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${typeInfo.color} border capitalize`}>
+                            {memory.type}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mb-4">
+                      <p className="text-sm text-slate-600 font-mono bg-slate-50 p-3 rounded-lg break-all">
+                        {memory.type === 'password' ? '••••••••' : memory.value}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100">
                       <span className="text-xs text-slate-400 font-medium">
-                        {new Date(note.created_at).toLocaleDateString()}
+                        {new Date(memory.created_at).toLocaleDateString()}
                       </span>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
-                          onClick={() => handleEditNote(note)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/80 text-slate-400 hover:text-indigo-600 transition-colors"
-                          title="Edit note"
+                          onClick={() => handleEditMemory(memory)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"
+                          title="Edit memory"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </button>
                         <button 
-                          onClick={() => deleteNote(note.id)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/80 text-slate-400 hover:text-red-500 transition-colors"
-                          title="Delete note"
+                          onClick={() => deleteMemory(memory.id)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                          title="Delete memory"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -258,19 +276,19 @@ export default function Notes() {
             <div className="text-center py-20">
               <div className="w-20 h-20 mx-auto mb-6 bg-slate-100 rounded-full flex items-center justify-center">
                 <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-slate-800 mb-2">No notes yet</h3>
-              <p className="text-slate-500 text-sm mb-6">Start capturing your thoughts and ideas</p>
+              <h3 className="text-xl font-bold text-slate-800 mb-2">No memories yet</h3>
+              <p className="text-slate-500 text-sm mb-6">Start storing your important information securely</p>
               <button 
-                onClick={handleCreateNote}
+                onClick={handleCreateMemory}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-[#5A67D8] text-white rounded-xl text-sm font-bold hover:bg-indigo-600 transition-colors shadow-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Create Your First Note
+                Create Your First Memory
               </button>
             </div>
           )}
@@ -282,13 +300,12 @@ export default function Notes() {
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
           <div 
-            className="bg-white rounded-[24px] p-8 w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-300" 
+            className="bg-white rounded-[24px] p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300" 
             onClick={e => e.stopPropagation()}
           >
-            {/* Modal Header */}
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-slate-800">
-                {editingNote ? 'Edit Note' : 'Create New Note'}
+                {editingMemory ? 'Edit Memory' : 'Create New Memory'}
               </h2>
               <button 
                 onClick={() => setShowModal(false)}
@@ -300,65 +317,53 @@ export default function Notes() {
               </button>
             </div>
 
-            {/* Modal Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Title Field */}
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">
-                  Note Title *
+                  Type *
+                </label>
+                <select 
+                  value={form.type}
+                  onChange={(e) => setForm(prev => ({ ...prev, type: e.target.value }))}
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
+                >
+                  {types.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.icon} {type.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Label *
                 </label>
                 <input 
                   type="text" 
-                  value={form.title}
-                  onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="Enter note title..."
+                  value={form.label}
+                  onChange={(e) => setForm(prev => ({ ...prev, label: e.target.value }))}
+                  placeholder="e.g., Gmail Password, Mom's Phone"
                   className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
                   required
                   autoFocus
                 />
               </div>
 
-              {/* Content Field */}
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">
-                  Content
+                  Value *
                 </label>
-                <textarea 
-                  value={form.content}
-                  onChange={(e) => setForm(prev => ({ ...prev, content: e.target.value }))}
-                  placeholder="Write your note here..."
-                  rows={6}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none transition-all"
+                <input 
+                  type={form.type === 'password' ? 'password' : 'text'}
+                  value={form.value}
+                  onChange={(e) => setForm(prev => ({ ...prev, value: e.target.value }))}
+                  placeholder="Enter the value..."
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
+                  required
                 />
               </div>
 
-              {/* Color Picker */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-3">
-                  Note Color
-                </label>
-                <div className="flex gap-3">
-                  {colors.map((color) => (
-                    <button
-                      key={color.name}
-                      type="button"
-                      onClick={() => setForm(prev => ({ ...prev, color: color.name }))}
-                      className={`w-10 h-10 rounded-xl ${color.bg} border-2 ${
-                        form.color === color.name ? color.border : 'border-transparent'
-                      } hover:scale-110 transition-transform`}
-                      title={color.name}
-                    >
-                      {form.color === color.name && (
-                        <svg className={`w-5 h-5 mx-auto ${color.text}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Modal Actions */}
               <div className="flex gap-3 pt-4">
                 <button 
                   type="button" 
@@ -371,7 +376,7 @@ export default function Notes() {
                   type="submit"
                   className="flex-1 px-6 py-3 bg-[#5A67D8] text-white rounded-xl text-sm font-bold hover:bg-indigo-600 transition-colors shadow-sm"
                 >
-                  {editingNote ? 'Update Note' : 'Create Note'}
+                  {editingMemory ? 'Update Memory' : 'Create Memory'}
                 </button>
               </div>
             </form>

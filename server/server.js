@@ -10,6 +10,7 @@ const { createTasksTable } = require('./models/Task');
 const { createNotesTable } = require('./models/Note');
 const { createMemoryTable } = require('./models/Memory');
 const { createGoalsTable } = require('./models/Goal');
+const { createFilesTable } = require('./models/File');
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use('/api/notes', require('./routes/noteRoutes'));
 app.use('/api/memories', require('./routes/memoryRoutes'));
 app.use('/api/goals', require('./routes/goalRoutes'));
 app.use('/api/ai', require('./routes/aiRoutes'));
+app.use('/api/files', require('./routes/fileRoutes'));
 
 const start = async () => {
   await connectDB();
@@ -33,6 +35,7 @@ const start = async () => {
   await createNotesTable();
   await createMemoryTable();
   await createGoalsTable();
+  await createFilesTable();
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 };

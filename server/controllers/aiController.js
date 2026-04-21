@@ -135,7 +135,7 @@ async function callAI(messages) {
 }
 
 // Rule-based fallback when all AI models are unavailable
-function ruleBasedResponse(message, memories, notes, tasks) {
+function ruleBasedResponse(message, memories, notes, tasks, files) {
   const msg = message.toLowerCase();
 
   // Check if asking about stored memory
@@ -158,6 +158,15 @@ function ruleBasedResponse(message, memories, notes, tasks) {
     if (pendingTasks.length > 0) {
       const taskList = pendingTasks.slice(0, 5).map(t => t.title).join(', ');
       return { intent: 'chat', action: 'answer', response: `You have ${pendingTasks.length} pending tasks: ${taskList} 📊`, save: null, record_data: null };
+    }
+  }
+
+  // Check if asking about files
+  if (msg.includes('file') || msg.includes('document') || msg.includes('pdf')) {
+    for (const f of files) {
+      if (msg.includes(f.name.toLowerCase()) || (f.content && msg.includes(f.content.toLowerCase().substring(0, 20)))) {
+        return { intent: 'chat', action: 'answer', response: `From ${f.name}: ${f.content?.substring(0, 200)}... 📄`, save: null, record_data: null };
+      }
     }
   }
 
@@ -216,6 +225,12 @@ const processMessage = async (req, res) => {
     const tasksContext = tasks.length
       ? `User's tasks:\n${tasks.map(t => `- ${t.title}${t.description ? ': ' + t.description : ''} [${t.status}, ${t.priority} priority]`).join('\n')}`
       : 'No tasks yet.';
+
+    // Fetch user's files for context
+    const files = await sql`SELECT name, type, content FROM files WHERE user_id = ${userId} AND content IS NOT NULL ORDER BY created_at DESC LIMIT 20`;
+    const filesContext = files.length
+      ? `User's uploaded files:\n${files.map(f => `- ${f.name} (${f.type}):\n${f.content?.substring(0, 500)}...`).join('\n\n')}`
+      : 'No files uploaded yet.';
 
     const buildSystemPrompt = (provider, modelName) => {
       const providerLabel = provider === 'gemini' ? `Google Gemini (${modelName})` : provider === 'groq' ? `${modelName} via Groq` : `${modelName} via OpenRouter`;
@@ -286,11 +301,14 @@ ${notesContext}
 
 ${tasksContext}
 
+${filesContext}
+
 ACTIONS — detect and handle automatically (works in English AND Hinglish):
 1. SAVE info — detect keywords: "password", "number", "address", "account", "pin", "id", "pasword hai", "ka password", "mera number", "save kar", "note kar", "yaad rakh" → extract label+value and save to memory
 2. RECALL stored info — "what is my password", "mera password kya tha", "mera number batao" → answer from stored data
    RECALL notes — "what is this", "what was that recipe", "tell me about", "kya tha wo", "batao wo formula", "what's the formula for" → search through user's notes and answer from there
    RECALL tasks — "what are my tasks", "what do I need to do", "mera kya kaam hai", "pending tasks", "what's on my list" → search through user's tasks and answer from there
+   RECALL files — "what's in my file", "tell me about the document", "file mein kya hai", "document ke baare mein batao" → search through user's uploaded files and answer from there
 3. CREATE task — "remind me", "todo", "aaj karna hai", "ye kaam karne hain", "mujhe yaad dilao", "schedule kar" → extract all tasks and create
 4. CREATE note — IMPORTANT: Auto-detect when user shares important information that should be saved as a note:
    - User shares ideas, thoughts, learnings, or important information
@@ -380,7 +398,7 @@ EXAMPLES:
       parsed = JSON.parse(jsonMatch[0]);
     } catch (aiErr) {
       console.log('All AI models failed, using rule-based fallback:', aiErr.message);
-      parsed = ruleBasedResponse(message, memories, notes, tasks);
+      parsed = ruleBasedResponse(message, memories, notes, tasks, files);
     }
 
     let savedRecord = null;
@@ -456,7 +474,6 @@ const getSuggestions = async (req, res) => {
       const suggestions = JSON.parse(aiResult.content.replace(/^```json\n?/, '').replace(/\n?```$/, ''));
       res.json({ suggestions });
     } catch {
-      // Fallback static suggestions when AI is unavailable
       res.json({ suggestions: [
         'Review and prioritize your pending tasks',
         'Break large goals into smaller actionable steps',
@@ -468,4 +485,37 @@ const getSuggestions = async (req, res) => {
   }
 };
 
-module.exports = { processMessage, getSuggestions };
+const summarizePDF = async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ message: 'Text is required' });
+
+    const aiResult = await callAI([
+      { role: 'system', content: 'You are a helpful assistant that summarizes documents. Provide a clear, concise summary in 3-5 sentences.' },
+      { role: 'user', content: `Summarize this document:\n\n${text}` },
+    ]);
+
+    res.json({ summary: aiResult.content });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to generate summary', error: err.message });
+  }
+};
+
+const extractPoints = async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ message: 'Text is required' });
+
+    const aiResult = await callAI([
+      { role: 'system', content: 'Extract 5-8 most important points from the document. Return ONLY a JSON array of strings, no markdown.' },
+      { role: 'user', content: `Extract key points from:\n\n${text}` },
+    ]);
+
+    const points = JSON.parse(aiResult.content.replace(/^```json\n?/, '').replace(/\n?```$/, ''));
+    res.json({ points });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to extract points', error: err.message });
+  }
+};
+
+module.exports = { processMessage, getSuggestions, summarizePDF, extractPoints };

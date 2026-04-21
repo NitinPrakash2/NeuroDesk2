@@ -10,6 +10,8 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Task';
 import Notes from './pages/Note';
+import Files from './pages/File';
+import Memory from './pages/Memory';
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -27,6 +29,8 @@ function AnimatedRoutes() {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/tasks" element={<Tasks />} />
                 <Route path="/notes" element={<Notes />} />
+                <Route path="/files" element={<Files />} />
+                <Route path="/memory" element={<Memory />} />
                 <Route path="*" element={<Navigate to="/app/dashboard" />} />
               </Routes>
             </ProtectedRoute>
