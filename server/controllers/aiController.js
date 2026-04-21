@@ -1,21 +1,21 @@
 const { sql } = require('../config/db');
 
 const FREE_MODELS = [
-  'google/gemma-4-26b-a4b-it:free',
-  'google/gemma-4-31b-it:free',
-  'arcee-ai/trinity-large-preview:free',
-  'arcee-ai/trinity-mini:free',
-  'nvidia/nemotron-nano-9b-v2:free',
-  'google/gemma-3-4b-it:free',
-  'nousresearch/hermes-3-llama-3.1-405b:free',
-  'liquid/lfm-2.5-1.2b-instruct:free',
+  'openai/gpt-oss-120b:free',
+  'openai/gpt-oss-20b:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'qwen/qwen3-next-80b-a3b-instruct:free',
+  'google/gemma-3-27b-it:free',
+  'google/gemma-3-12b-it:free',
+  'meta-llama/llama-3.2-3b-instruct:free',
 ];
 
 // Primary: Google Gemini (1500 free req/day)
 async function callGemini(messages) {
   if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === '<your_gemini_api_key>') throw new Error('No Gemini key');
   const prompt = messages.map(m => `${m.role === 'system' ? 'System' : 'User'}: ${m.content}`).join('\n');
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
@@ -49,7 +49,7 @@ async function callOpenRouter(messages) {
         lastError = new Error(json.error?.message || 'No content');
         continue;
       }
-      return content.trim();
+      return { content: content.trim(), provider: 'openrouter', model };
     } catch (err) {
       console.log(`Model ${model} error:`, err.message);
       lastError = err;
@@ -60,10 +60,11 @@ async function callOpenRouter(messages) {
 
 async function callAI(messages) {
   try {
-    return await callGemini(messages);
-  } catch (err) {
-    console.log('Gemini failed, trying OpenRouter:', err.message);
     return await callOpenRouter(messages);
+  } catch (err) {
+    console.log('OpenRouter failed, trying Gemini:', err.message);
+    const content = await callGemini(messages);
+    return { content, provider: 'gemini', model: 'gemini-2.0-flash-lite' };
   }
 }
 
@@ -113,13 +114,28 @@ const processMessage = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Fetch user's stored memories so AI can answer "what is my password" etc.
+    // Fetch user profile name and stored memories
+    const [userProfile] = await sql`SELECT name FROM users WHERE id = ${userId}`;
+    const userName = userProfile?.name || 'there';
+
     const memories = await sql`SELECT type, label, value FROM memories WHERE user_id = ${userId}`;
     const memoryContext = memories.length
       ? `User's stored data:\n${memories.map(m => `- ${m.label}: ${m.value} (${m.type})`).join('\n')}`
       : 'No stored data yet.';
 
-    const systemPrompt = `You are NeuroDesk AI, a smart personal productivity assistant. You help users manage tasks, notes, memories, goals, and answer any question.
+    // Build system prompt after we know provider (we'll do a two-step: build prompt with placeholder, replace after AI call)
+    const buildSystemPrompt = (provider, modelName) => {
+      const identityLine = provider === 'gemini'
+        ? `You are NeuroDesk AI powered by Google Gemini (${modelName}), integrated into the NeuroDesk productivity platform.`
+        : `You are NeuroDesk AI powered by ${modelName} via OpenRouter, integrated into the NeuroDesk productivity platform.`;
+
+      return `${identityLine} You help users manage tasks, notes, memories, goals, and answer any question.
+The user's name is: ${userName}
+
+IDENTITY RULES:
+- If asked "who are you" or "what are you": say you are NeuroDesk AI and mention your underlying model (e.g. "I'm NeuroDesk AI, powered by ${modelName} via ${provider === 'gemini' ? 'Google Gemini' : 'OpenRouter'}, integrated into NeuroDesk to help you stay productive.")
+- If asked "what is my name" or "who am I": always answer using the user's name from their profile: "${userName}"
+- Never say you are ChatGPT or a generic AI assistant.
 
 ${memoryContext}
 
@@ -138,21 +154,33 @@ Always respond in this exact JSON format:
 }
 
 Examples:
-- "my gmail password is abc123" → action:create, intent:memory, response:"Got it! I've saved your Gmail password.", save:{"type":"password","label":"Gmail Password","value":"abc123"}
-- "what is my password" → action:answer, intent:chat, response:"Your Gmail password is abc123" (from stored data)
-- "who are you" → action:answer, intent:chat, response:"I'm NeuroDesk AI, your personal productivity assistant powered by OpenRouter..."
-- "what is 2+2" → action:answer, intent:chat, response:"2+2 = 4"
-- "remind me to call mom tomorrow" → action:create, intent:task, response:"Task created!", record_data:{title:"Call mom", priority:"medium"}
-- "how are you" → action:answer, intent:chat, response:"I'm just a bunch of code, but I'm here to help you be productive!"
+- "my gmail password is abc123" → intent:memory, action:create, response:"Got it! I've saved your Gmail password.", save:{"type":"password","label":"Gmail Password","value":"abc123"}
+- "what is my name" → intent:chat, action:answer, response:"Your name is ${userName}!"
+- "who are you" → intent:chat, action:answer, response:"I'm NeuroDesk AI, powered by ${modelName} via OpenRouter, here to help you stay organized!"
+- "what is 2+2" → intent:chat, action:answer, response:"2+2 = 4"
+- "remind me to call mom tomorrow" → intent:task, action:create, response:"Task created!", record_data:{title:"Call mom", priority:"medium"}
 
 Return ONLY valid JSON. No markdown.`;
+    };
 
     let parsed;
     try {
-      const raw = await callAI([
-        { role: 'system', content: systemPrompt },
+      // First call with a neutral prompt to get provider info
+      const aiResult = await callAI([
+        { role: 'system', content: buildSystemPrompt('openrouter', 'AI') },
         { role: 'user', content: message },
       ]);
+      // Rebuild with actual provider/model and re-call only if identity question, else use result
+      const finalPrompt = buildSystemPrompt(aiResult.provider, aiResult.model);
+      const isIdentityQ = /who are you|what (model|are you)|your name|what is your/i.test(message);
+      let raw = aiResult.content;
+      if (isIdentityQ) {
+        const refined = await callAI([
+          { role: 'system', content: finalPrompt },
+          { role: 'user', content: message },
+        ]);
+        raw = refined.content;
+      }
       const jsonStr = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
       parsed = JSON.parse(jsonStr);
     } catch (aiErr) {
