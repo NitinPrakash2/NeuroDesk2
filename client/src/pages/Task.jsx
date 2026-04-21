@@ -70,20 +70,23 @@ export default function Tasks() {
 
   const toggleTaskStatus = async (task) => {
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
     try {
       const response = await api.put(`/tasks/${task.id}`, { status: newStatus });
       setTasks(prev => prev.map(t => t.id === task.id ? response.data : t));
     } catch (error) {
+      setTasks(prev => prev.map(t => t.id === task.id ? task : t));
       console.error('Error updating task:', error);
     }
   };
 
   const deleteTask = async (taskId) => {
+    setTasks(prev => prev.filter(t => t.id !== taskId));
     try {
       await api.delete(`/tasks/${taskId}`);
-      setTasks(prev => prev.filter(t => t.id !== taskId));
     } catch (error) {
       console.error('Error deleting task:', error);
+      fetchTasks();
     }
   };
 
@@ -112,15 +115,21 @@ export default function Tasks() {
     today: tasks.filter(t => new Date(t.created_at).toDateString() === new Date().toDateString()).length
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-screen w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5A67D8]"></div>
+  const SkeletonRow = () => (
+    <div className="flex items-center justify-between p-6 border-b border-slate-50">
+      <div className="flex items-center gap-4 flex-1">
+        <div className="w-5 h-5 rounded-lg bg-slate-100 animate-pulse" />
+        <div className="flex-1 space-y-2">
+          <div className="h-3.5 bg-slate-100 rounded-full w-2/5 animate-pulse" />
+          <div className="h-2.5 bg-slate-100 rounded-full w-1/4 animate-pulse" />
         </div>
       </div>
-    );
-  }
+      <div className="flex items-center gap-3">
+        <div className="h-7 w-16 bg-slate-100 rounded-lg animate-pulse" />
+        <div className="h-7 w-16 bg-slate-100 rounded-lg animate-pulse" />
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex h-screen w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden">
@@ -309,7 +318,11 @@ export default function Tasks() {
 
           {/* TASKS LIST */}
           <div className="bg-white rounded-[24px] shadow-sm border border-slate-100 overflow-hidden">
-            {filteredTasks.length > 0 ? (
+            {loading ? (
+              <div className="divide-y divide-slate-50">
+                {[...Array(5)].map((_, i) => <SkeletonRow key={i} />)}
+              </div>
+            ) : filteredTasks.length > 0 ? (
               <div className="divide-y divide-slate-50">
                 {filteredTasks.map((task, index) => (
                   <div 

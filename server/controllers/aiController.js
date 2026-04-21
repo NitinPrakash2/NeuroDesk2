@@ -11,7 +11,47 @@ const FREE_MODELS = [
   'meta-llama/llama-3.2-3b-instruct:free',
 ];
 
-// Primary: Google Gemini
+// Groq API
+async function callGroq(messages) {
+  if (!process.env.GROQ_API_KEY || process.env.GROQ_API_KEY === '<your_groq_api_key>') throw new Error('No Groq key');
+
+  const groqModels = [
+    'llama-3.3-70b-versatile',
+    'llama3-70b-8192',
+    'llama3-8b-8192',
+    'gemma2-9b-it',
+  ];
+
+  let lastError;
+  for (const model of groqModels) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model, messages, max_tokens: 500 }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        console.log(`Groq model ${model} failed:`, json.error?.message);
+        lastError = new Error(json.error?.message || 'Groq error');
+        continue;
+      }
+      const content = json.choices?.[0]?.message?.content;
+      if (!content) { lastError = new Error('No content from Groq'); continue; }
+      console.log(`Groq model ${model} succeeded`);
+      return { content: content.trim(), provider: 'groq', model };
+    } catch (err) {
+      console.log(`Groq model ${model} error:`, err.message);
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
+
+// Google Gemini
 async function callGemini(messages) {
   if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === '<your_gemini_api_key>') throw new Error('No Gemini key');
   const prompt = messages.map(m => `${m.role === 'system' ? 'System' : 'User'}: ${m.content}`).join('\n');
@@ -82,11 +122,15 @@ async function callOpenRouter(messages) {
 
 async function callAI(messages) {
   try {
-    return await callOpenRouter(messages);
-  } catch (err) {
-    console.log('OpenRouter failed, trying Gemini:', err.message);
-    const content = await callGemini(messages);
-    return { content, provider: 'gemini', model: 'gemini-2.0-flash-lite' };
+    return await callGroq(messages);
+  } catch (groqErr) {
+    console.log('Groq failed, trying Gemini:', groqErr.message);
+    try {
+      return await callGemini(messages);
+    } catch (geminiErr) {
+      console.log('Gemini failed, trying OpenRouter:', geminiErr.message);
+      return await callOpenRouter(messages);
+    }
   }
 }
 
@@ -146,7 +190,7 @@ const processMessage = async (req, res) => {
       : 'No stored data yet.';
 
     const buildSystemPrompt = (provider, modelName) => {
-      const providerLabel = provider === 'gemini' ? `Google Gemini (${modelName})` : `${modelName} via OpenRouter`;
+      const providerLabel = provider === 'gemini' ? `Google Gemini (${modelName})` : provider === 'groq' ? `${modelName} via Groq` : `${modelName} via OpenRouter`;
       return `You are NeuroDesk AI — a friendly, smart personal assistant integrated into the NeuroDesk app. You are powered by ${providerLabel}.
 
 The user's name is: ${userName}
@@ -204,7 +248,7 @@ ACADEMIC & KNOWLEDGE — answer accurately and clearly:
 
 IDENTITY:
 - If asked who you are: "I'm NeuroDesk AI, powered by ${providerLabel}, your personal assistant built right into NeuroDesk!"
-- If asked what model: mention ${modelName} and ${provider === 'gemini' ? 'Google Gemini' : 'OpenRouter'}
+- If asked what model: mention ${modelName} and ${provider === 'gemini' ? 'Google Gemini' : provider === 'groq' ? 'Groq' : 'OpenRouter'}
 - If asked user's name: always say "${userName}" (from their profile)
 - Never claim to be ChatGPT, Claude, or any other product
 
@@ -217,6 +261,13 @@ ACTIONS — detect and handle automatically (works in English AND Hinglish):
 4. CREATE note — "note this", "write down", "note kar", "likh le", "save this" → create note
 5. CREATE goal — "my goal is", "mera goal hai", "I want to achieve", "mujhe achieve karna hai" → create goal
 6. ANYTHING ELSE → answer naturally like a knowledgeable desi friend
+
+CRITICAL RULES — follow these without exception:
+- You MUST reply ONLY with a valid JSON object. No text before or after. No markdown. No explanation.
+- The JSON must start with { and end with }. Nothing else.
+- The "response" field must be in the SAME language/style the user wrote in (Hinglish, Hindi, or English)
+- If user writes in Hinglish — the "response" value must be in Hinglish like a desi friend
+- NEVER write plain text. NEVER add any explanation outside the JSON.
 
 RESPONSE FORMAT — always return valid JSON only, no markdown:
 {
@@ -267,13 +318,14 @@ EXAMPLES:
     let parsed;
     try {
       const aiResult = await callAI([
-        { role: 'system', content: buildSystemPrompt('openrouter', 'AI') },
+        { role: 'system', content: buildSystemPrompt('groq', 'llama-3.3-70b-versatile') },
         { role: 'user', content: message },
+        { role: 'assistant', content: '{"intent":' },
       ]);
-      const systemPrompt = buildSystemPrompt(aiResult.provider, aiResult.model);
-      const raw = aiResult.content;
-      const jsonStr = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-      parsed = JSON.parse(jsonStr);
+      const raw = '{"intent":' + aiResult.content;
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('No JSON in response');
+      parsed = JSON.parse(jsonMatch[0]);
     } catch (aiErr) {
       console.log('All AI models failed, using rule-based fallback:', aiErr.message);
       parsed = ruleBasedResponse(message, memories);
@@ -345,11 +397,11 @@ const getSuggestions = async (req, res) => {
     const tasks = await sql`SELECT title, status, priority FROM tasks WHERE user_id = ${req.user.id} LIMIT 10`;
     const goals = await sql`SELECT title, progress FROM goals WHERE user_id = ${req.user.id} LIMIT 5`;
     try {
-      const raw = await callAI([
+      const aiResult = await callAI([
         { role: 'system', content: 'Give 3 short actionable productivity suggestions. Return ONLY a JSON array of 3 strings, no markdown.' },
         { role: 'user', content: `Tasks: ${JSON.stringify(tasks)}, Goals: ${JSON.stringify(goals)}` },
       ]);
-      const suggestions = JSON.parse(raw.replace(/^```json\n?/, '').replace(/\n?```$/, ''));
+      const suggestions = JSON.parse(aiResult.content.replace(/^```json\n?/, '').replace(/\n?```$/, ''));
       res.json({ suggestions });
     } catch {
       // Fallback static suggestions when AI is unavailable

@@ -251,19 +251,29 @@ export default function Dashboard() {
             </div>
 
             {/* Card 2: AI Suggestions */}
-            <div className="bg-white p-5 rounded-[20px] shadow-sm border border-slate-100 h-36">
+            <div className="bg-white p-5 rounded-[20px] shadow-sm border border-slate-100 h-36 overflow-hidden">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-500">
+                <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-500 flex-shrink-0">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 </div>
                 <h3 className="font-bold text-sm text-slate-800">AI Suggestions</h3>
               </div>
-              <ul className="text-[11px] text-slate-600 space-y-2 font-medium ml-1">
+              <ul className="text-[11px] text-slate-600 space-y-1.5 font-medium ml-1">
                 {suggestions.slice(0, 3).map((suggestion, i) => (
-                  <li key={i} className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-slate-100 flex items-center justify-center"><svg className="w-2 h-2 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg></div> {suggestion}</li>
+                  <li key={i} className="flex items-start gap-2">
+                    <div className="w-3 h-3 rounded bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg className="w-2 h-2 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                    </div>
+                    <span className="truncate">{suggestion}</span>
+                  </li>
                 ))}
                 {suggestions.length === 0 && (
-                  <li className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-slate-100 flex items-center justify-center"><svg className="w-2 h-2 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg></div> Loading suggestions...</li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-slate-100 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-2 h-2 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                    </div>
+                    Loading suggestions...
+                  </li>
                 )}
               </ul>
             </div>
