@@ -11,20 +11,42 @@ const FREE_MODELS = [
   'meta-llama/llama-3.2-3b-instruct:free',
 ];
 
-// Primary: Google Gemini (1500 free req/day)
+// Primary: Google Gemini
 async function callGemini(messages) {
   if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === '<your_gemini_api_key>') throw new Error('No Gemini key');
   const prompt = messages.map(m => `${m.role === 'system' ? 'System' : 'User'}: ${m.content}`).join('\n');
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-  });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error?.message || 'Gemini error');
-  const content = json.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!content) throw new Error('No content from Gemini');
-  return content.trim();
+
+  const geminiModels = [
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
+  ];
+
+  let lastError;
+  for (const model of geminiModels) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        console.log(`Gemini model ${model} failed:`, json.error?.message);
+        lastError = new Error(json.error?.message || 'Gemini error');
+        continue;
+      }
+      const content = json.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!content) { lastError = new Error('No content from Gemini'); continue; }
+      console.log(`Gemini model ${model} succeeded`);
+      return { content: content.trim(), provider: 'gemini', model };
+    } catch (err) {
+      console.log(`Gemini model ${model} error:`, err.message);
+      lastError = err;
+    }
+  }
+  throw lastError;
 }
 
 // Fallback: OpenRouter free models
