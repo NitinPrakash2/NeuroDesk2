@@ -13,6 +13,7 @@ import Notes from './pages/Note';
 import Files from './pages/File';
 import Memory from './pages/Memory';
 import Goal from './pages/Goal';
+import Analytics from './pages/Analytics';
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -33,6 +34,7 @@ function AnimatedRoutes() {
                 <Route path="/files" element={<Files />} />
                 <Route path="/memory" element={<Memory />} />
                 <Route path="/goals" element={<Goal />} />
+                <Route path="/analytics" element={<Analytics />} />
                 <Route path="*" element={<Navigate to="/app/dashboard" />} />
               </Routes>
             </ProtectedRoute>

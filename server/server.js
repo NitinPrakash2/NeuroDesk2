@@ -26,6 +26,7 @@ app.use('/api/memories', require('./routes/memoryRoutes'));
 app.use('/api/goals', require('./routes/goalRoutes'));
 app.use('/api/ai', require('./routes/aiRoutes'));
 app.use('/api/files', require('./routes/fileRoutes'));
+app.use('/api/analytics', require('./routes/analyticsRoutes'));
 
 const start = async () => {
   await connectDB();
