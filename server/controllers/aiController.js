@@ -297,6 +297,18 @@ const processMessage = async (req, res) => {
       ? `User's uploaded files:\n${files.map(f => `- ${f.name} (${f.type}):\n${f.content?.substring(0, 500)}...`).join('\n\n')}`
       : 'No files uploaded yet.';
 
+    // Fetch analytics context
+    const [analyticsRow] = await sql`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'completed') as completed,
+        COUNT(*) FILTER (WHERE status = 'pending') as pending,
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'completed' AND created_at >= NOW() - INTERVAL '7 days') as this_week,
+        COUNT(*) FILTER (WHERE status = 'completed' AND created_at >= NOW() - INTERVAL '14 days' AND created_at < NOW() - INTERVAL '7 days') as last_week
+      FROM tasks WHERE user_id = ${userId}`;
+    const prodPct = analyticsRow.total > 0 ? Math.round((analyticsRow.completed / analyticsRow.total) * 100) : 0;
+    const analyticsContext = `User's analytics summary: ${analyticsRow.completed}/${analyticsRow.total} tasks completed (${prodPct}% productivity), ${analyticsRow.pending} pending. This week: ${analyticsRow.this_week} completed, last week: ${analyticsRow.last_week} completed.`;
+
     // Fetch user's goals for context
     const goalsData = await sql`SELECT title, description, progress, status, duration, start_date, end_date FROM goals WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 10`;
     const goalsContext = goalsData.length
@@ -372,6 +384,8 @@ IDENTITY:
 - If asked what model: mention ${modelName} and ${provider === 'gemini' ? 'Google Gemini' : provider === 'groq' ? 'Groq' : 'OpenRouter'}
 - If asked user's name: always say "${userName}" (from their profile)
 - Never claim to be ChatGPT, Claude, or any other product
+
+${analyticsContext}
 
 ${memoryContext}
 
