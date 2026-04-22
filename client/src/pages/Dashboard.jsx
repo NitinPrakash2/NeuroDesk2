@@ -5,15 +5,11 @@ import api from '../services/api';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [isChatClosing, setIsChatClosing] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [notes, setNotes] = useState([]);
   const [goals, setGoals] = useState([]);
   const [memories, setMemories] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatInput, setChatInput] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,85 +41,6 @@ export default function Dashboard() {
     };
     fetchData();
   }, []);
-
-  const handleSendMessage = async () => {
-    if (!chatInput.trim()) return;
-    
-    const userMessage = chatInput.trim();
-    const userMsg = { role: 'user', content: userMessage };
-    setChatMessages(prev => [...prev, userMsg]);
-    setChatInput('');
-    
-    // Add loading message
-    const loadingMsg = { role: 'assistant', content: 'Thinking...' };
-    setChatMessages(prev => [...prev, loadingMsg]);
-    
-    try {
-      const res = await api.post('/ai/chat', { message: userMessage });
-      
-      // Create response message with special formatting for saved data
-      let responseContent = res.data.response || res.data.message;
-      
-      // Add visual indicator if something was saved
-      if (res.data.record) {
-        const recordType = res.data.intent;
-        const emoji = recordType === 'memory' ? '🧠' : recordType === 'task' ? '✅' : recordType === 'note' ? '📝' : recordType === 'goal' ? '🎯' : '💾';
-        responseContent += `\n\n${emoji} Saved to ${recordType}s!`;
-      }
-      
-      // Remove loading message and add real response
-      setChatMessages(prev => {
-        const newMessages = [...prev];
-        newMessages[newMessages.length - 1] = { 
-          role: 'assistant', 
-          content: responseContent,
-          saved: !!res.data.record,
-          recordType: res.data.intent
-        };
-        return newMessages;
-      });
-      
-      // If AI created something, refresh the data with visual feedback
-      if (res.data.record) {
-        // Show success notification
-        const recordType = res.data.intent;
-        
-        // Refresh relevant data based on what was created
-        if (recordType === 'task') {
-          const tasksRes = await api.get('/tasks');
-          setTasks(tasksRes.data);
-        } else if (recordType === 'note') {
-          const notesRes = await api.get('/notes');
-          setNotes(notesRes.data);
-        } else if (recordType === 'goal') {
-          const goalsRes = await api.get('/goals');
-          setGoals(goalsRes.data);
-        } else if (recordType === 'memory') {
-          const memoriesRes = await api.get('/memories');
-          setMemories(memoriesRes.data);
-        }
-      }
-    } catch (err) {
-      console.error('Chat error:', err);
-      // Replace loading message with error
-      setChatMessages(prev => {
-        const newMessages = [...prev];
-        newMessages[newMessages.length - 1] = { 
-          role: 'assistant', 
-          content: 'Sorry, I encountered an error. Please try again.' 
-        };
-        return newMessages;
-      });
-    }
-  };
-
-  const handleCloseChat = () => {
-    setIsChatClosing(true);
-    setTimeout(() => {
-      setIsChatOpen(false);
-      setIsChatClosing(false);
-    }, 300);
-  };
 
   return (
     // Outer Wrapper: Flexbox to place Sidebar and Main Content side-by-side
@@ -414,140 +331,6 @@ export default function Dashboard() {
 
         </div>
 
-        {/* ================= FLOATING AI CHAT ICON ================= */}
-        {!isChatOpen && (
-          <button 
-            onClick={() => setIsChatOpen(true)}
-            className="fixed bottom-6 right-6 w-14 h-14 bg-[#5A67D8] text-white rounded-full shadow-lg hover:bg-indigo-600 transition-all duration-300 flex items-center justify-center z-50 hover:scale-110"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-          </button>
-        )}
-
-        {/* ================= FLOATING AI ASSISTANT ================= */}
-        {(isChatOpen || isChatClosing) && (
-          <div className={`fixed bottom-10 right-10 w-[380px] bg-white rounded-[24px] shadow-[0_12px_40px_rgb(0,0,0,0.12)] border border-slate-100 overflow-hidden z-50 flex flex-col ${
-            isChatClosing ? 'animate-chatSlideOut' : 'animate-chatSlideIn'
-          }`}>
-            {/* Header */}
-            <div className="px-6 py-4 flex justify-between items-center border-b border-slate-50 bg-gradient-to-r from-indigo-50 to-purple-50">
-              <span className="text-[13px] font-bold text-slate-800 flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                AI Assistant
-              </span>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setChatMessages([])}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/80 backdrop-blur-sm border border-slate-200 text-[11px] font-bold text-slate-400 rounded-full hover:bg-white hover:text-slate-600 transition-all duration-200"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  Clear
-                </button>
-                <button 
-                  onClick={handleCloseChat}
-                  className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded-full hover:bg-white/80 backdrop-blur-sm transition-all duration-200 hover:rotate-90"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Body */}
-            <div className="px-6 py-6 bg-gradient-to-br from-[#FAFBFF] to-[#F8FAFC] h-[240px] flex flex-col">
-              {chatMessages.length === 0 ? (
-                <>
-                  <div className="flex gap-3 mb-6 animate-in fade-in duration-700">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 text-white flex items-center justify-center text-xs font-bold shadow-lg animate-pulse">{user?.name?.charAt(0) || 'U'}</div>
-                    <div>
-                      <div className="text-[13px] font-bold text-slate-800 mb-0.5">Hello {user?.name || 'User'}! How can I assist you today?</div>
-                      <div className="text-[10px] text-slate-400 font-bold">{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-start gap-2 mt-auto animate-in slide-in-from-bottom-4 duration-500 delay-300">
-                    <button 
-                      onClick={() => setChatInput('My WiFi password is MySecurePass123')}
-                      className="text-[11px] px-4 py-2 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full text-slate-600 font-bold shadow-sm flex items-center gap-1.5 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 transition-all duration-200 hover:scale-105"
-                    >
-                      💾 Save my WiFi password <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                    </button>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => setChatInput('What is my WiFi password?')}
-                        className="text-[11px] px-4 py-2 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full text-slate-600 font-bold shadow-sm flex items-center gap-1.5 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 transition-all duration-200 hover:scale-105"
-                      >
-                        🔍 What's my WiFi password? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                      </button>
-                    </div>
-                    <button 
-                      onClick={() => setChatInput('Remind me to call mom tomorrow at 3 PM')}
-                      className="text-[11px] px-4 py-2 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full text-slate-600 font-bold shadow-sm flex items-center gap-1.5 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 transition-all duration-200 hover:scale-105"
-                    >
-                      ✅ Create a reminder task <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                    </button>
-                    <button 
-                      onClick={() => setChatInput('mujhe upsc ki taiyari karni hai aur 1 saal me clear karna hai')}
-                      className="text-[11px] px-4 py-2 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full text-slate-600 font-bold shadow-sm flex items-center gap-1.5 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 transition-all duration-200 hover:scale-105"
-                    >
-                      🎯 Set a goal <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="flex-1 overflow-y-auto space-y-3 animate-in fade-in duration-300">
-                  {chatMessages.map((msg, i) => (
-                    <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''} animate-in slide-in-from-bottom-2 duration-300`} style={{animationDelay: `${i * 100}ms`}}>
-                      {msg.role === 'assistant' && (
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-md">
-                          {msg.content === 'Thinking...' ? (
-                            <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
-                          ) : (
-                            'AI'
-                          )}
-                        </div>
-                      )}
-                      <div className={`text-[11px] p-3 rounded-lg max-w-xs transition-all duration-200 ${msg.role === 'user' ? 'bg-gradient-to-br from-indigo-100 to-indigo-200 text-indigo-800 ml-auto shadow-md' : msg.saved ? 'bg-gradient-to-br from-green-50 to-emerald-50 text-slate-700 border border-green-200 shadow-sm' : 'bg-white/90 backdrop-blur-sm text-slate-700 border border-slate-100 shadow-sm'}`}>
-                        {msg.content.split('\n').map((line, idx) => (
-                          <div key={idx} className={line.includes('Saved to') ? 'text-green-600 font-semibold mt-2 flex items-center gap-1' : ''}>
-                            {line}
-                          </div>
-                        ))}
-                      </div>
-                      {msg.role === 'user' && (
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-md">{user?.name?.charAt(0) || 'U'}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Input Area */}
-            <div className="px-5 py-4 bg-white border-t border-slate-50 flex items-center gap-3">
-              <div className="flex-1 bg-gradient-to-r from-slate-50 to-slate-100 rounded-2xl flex items-center px-4 py-2.5 border border-slate-200 focus-within:border-indigo-300 focus-within:bg-white transition-all duration-200">
-                <svg className="w-4 h-4 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
-                <input 
-                  type="text" 
-                  placeholder="Type a message..." 
-                  className="bg-transparent w-full text-xs font-medium outline-none text-slate-800 placeholder-slate-500" 
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                />
-                <button className="text-slate-400 hover:text-indigo-500 ml-2 transition-colors duration-200 hover:scale-110"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg></button>
-                <button className="text-slate-400 hover:text-indigo-500 ml-2 transition-colors duration-200 hover:scale-110"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></button>
-              </div>
-              <button 
-                onClick={handleSendMessage}
-                disabled={!chatInput.trim()}
-                className="w-10 h-10 rounded-full bg-gradient-to-br from-[#5A67D8] to-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-200 hover:shadow-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 active:scale-95"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-              </button>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );

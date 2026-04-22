@@ -1,6 +1,6 @@
 const { sql } = require('../config/db');
 
-// AI caller (reuse same pattern as aiController)
+// AI caller: Groq → Gemini → OpenRouter
 async function callAI(messages) {
   const GROQ_KEY = process.env.GROQ_API_KEY;
   if (GROQ_KEY) {
@@ -12,22 +12,44 @@ async function callAI(messages) {
       });
       const json = await res.json();
       const content = json.choices?.[0]?.message?.content;
-      if (content) return content.trim();
-    } catch (_) {}
+      if (res.ok && content) { console.log('Analytics: Groq succeeded'); return content.trim(); }
+      console.log('Analytics: Groq failed:', json.error?.message);
+    } catch (e) { console.log('Analytics: Groq error:', e.message); }
   }
   const GEMINI_KEY = process.env.GEMINI_API_KEY;
   if (GEMINI_KEY) {
+    const geminiModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
+    for (const model of geminiModels) {
+      try {
+        const systemMsg = messages.find(m => m.role === 'system');
+        const userMessages = messages.filter(m => m.role !== 'system');
+        const contents = userMessages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+        const body = { contents, generationConfig: { maxOutputTokens: 300, temperature: 0.7 } };
+        if (systemMsg) body.systemInstruction = { parts: [{ text: systemMsg.content }] };
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const json = await res.json();
+        const content = json.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (res.ok && content) { console.log(`Analytics: Gemini ${model} succeeded`); return content.trim(); }
+        console.log(`Analytics: Gemini ${model} failed:`, json.error?.message);
+      } catch (e) { console.log(`Analytics: Gemini ${model} error:`, e.message); }
+    }
+  }
+  const OR_KEY = process.env.OPENROUTER_API_KEY;
+  if (OR_KEY) {
     try {
-      const prompt = messages.map(m => m.content).join('\n');
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        headers: { 'Authorization': `Bearer ${OR_KEY}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://neurodesk.app', 'X-Title': 'NeuroDesk' },
+        body: JSON.stringify({ model: 'meta-llama/llama-3.3-70b-instruct:free', messages, max_tokens: 300 }),
       });
       const json = await res.json();
-      const content = json.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (content) return content.trim();
-    } catch (_) {}
+      const content = json.choices?.[0]?.message?.content;
+      if (res.ok && content) { console.log('Analytics: OpenRouter succeeded'); return content.trim(); }
+    } catch (e) { console.log('Analytics: OpenRouter error:', e.message); }
   }
   return null;
 }

@@ -11,6 +11,7 @@ const { createNotesTable } = require('./models/Note');
 const { createMemoryTable } = require('./models/Memory');
 const { createGoalsTable } = require('./models/Goal');
 const { createFilesTable } = require('./models/File');
+const { createChatHistoryTable } = require('./models/ChatHistory');
 
 const app = express();
 
@@ -37,6 +38,7 @@ const start = async () => {
   await createMemoryTable();
   await createGoalsTable();
   await createFilesTable();
+  await createChatHistoryTable();
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 };

@@ -1,5 +1,36 @@
 const { sql } = require('../config/db');
 
+// Smart local history match — no AI tokens needed
+function smartHistoryAnswer(message, dbHistory, memories) {
+  const msg = message.toLowerCase().trim();
+
+  // 1. Direct memory DB match — always works regardless of query type
+  for (const m of memories) {
+    const labelWords = m.label.toLowerCase().split(' ');
+    if (labelWords.every(w => msg.includes(w))) {
+      const response = m.type === 'password'
+        ? `Your ${m.label} is: ${m.value} 🔐`
+        : `Your ${m.label}: ${m.value}`;
+      return { response, source: 'memory' };
+    }
+  }
+
+  // 2. Recall from chat history
+  const stopWords = /\b(what|is|my|mera|kya|tha|hai|batao|tell|me|the|a|an|bhai|yaar|check|kro|dekh|saved|h|ka|ki|ke)\b/g;
+  const keywords = msg.replace(stopWords, '').trim().split(/\s+/).filter(w => w.length > 2);
+  if (keywords.length > 0) {
+    for (const turn of [...dbHistory].reverse()) {
+      if (turn.role === 'assistant') {
+        const contentLower = turn.content.toLowerCase();
+        if (keywords.some(k => contentLower.includes(k))) {
+          return { response: turn.content, source: 'history' };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 const FREE_MODELS = [
   'openai/gpt-oss-120b:free',
   'openai/gpt-oss-20b:free',
@@ -17,9 +48,9 @@ async function callGroq(messages) {
 
   const groqModels = [
     'llama-3.3-70b-versatile',
-    'llama3-70b-8192',
-    'llama3-8b-8192',
-    'gemma2-9b-it',
+    'llama-3.1-70b-versatile',
+    'llama-3.1-8b-instant',
+    'mistral-saba-24b',
   ];
 
   let lastError;
@@ -51,17 +82,31 @@ async function callGroq(messages) {
   throw lastError;
 }
 
-// Google Gemini
+// Google Gemini Flash
 async function callGemini(messages) {
   if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === '<your_gemini_api_key>') throw new Error('No Gemini key');
-  const prompt = messages.map(m => `${m.role === 'system' ? 'System' : 'User'}: ${m.content}`).join('\n');
 
-  const geminiModels = [
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-  ];
+  // Separate system prompt and conversation messages
+  const systemMsg = messages.find(m => m.role === 'system');
+  const userMessages = messages.filter(m => m.role !== 'system');
+
+  // Build contents array for Gemini format
+  const contents = userMessages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+
+  const body = {
+    contents,
+    generationConfig: { maxOutputTokens: 500, temperature: 0.7 },
+  };
+
+  // Add system instruction if present
+  if (systemMsg) {
+    body.systemInstruction = { parts: [{ text: systemMsg.content }] };
+  }
+
+  const geminiModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
 
   let lastError;
   for (const model of geminiModels) {
@@ -69,20 +114,20 @@ async function callGemini(messages) {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!res.ok) {
-        console.log(`Gemini model ${model} failed:`, json.error?.message);
+        console.log(`Gemini ${model} failed:`, json.error?.message);
         lastError = new Error(json.error?.message || 'Gemini error');
         continue;
       }
       const content = json.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!content) { lastError = new Error('No content from Gemini'); continue; }
-      console.log(`Gemini model ${model} succeeded`);
+      console.log(`Gemini ${model} succeeded`);
       return { content: content.trim(), provider: 'gemini', model };
     } catch (err) {
-      console.log(`Gemini model ${model} error:`, err.message);
+      console.log(`Gemini ${model} error:`, err.message);
       lastError = err;
     }
   }
@@ -270,11 +315,29 @@ const processMessage = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Fetch user profile name and stored memories
+    // Fetch DB chat history (last 40 messages for smart matching, last 6 for AI)
+    const dbHistory = await sql`
+      SELECT role, content FROM chat_history
+      WHERE user_id = ${userId}
+      ORDER BY created_at DESC LIMIT 40
+    `.then(rows => rows.reverse());
+
+    // Save user message to DB
+    await sql`INSERT INTO chat_history (user_id, role, content) VALUES (${userId}, 'user', ${message.trim()})`;
+
     const [userProfile] = await sql`SELECT name FROM users WHERE id = ${userId}`;
     const userName = userProfile?.name || 'there';
 
-    const memories = await sql`SELECT type, label, value FROM memories WHERE user_id = ${userId}`;
+    const memories = await sql`SELECT id, type, label, value FROM memories WHERE user_id = ${userId}`;
+
+    // Smart local answer — memory match always returns, history match only on recall queries
+    const smartResult = smartHistoryAnswer(message, dbHistory, memories);
+    const isRecallQuery = /\b(kya tha|what is|what was|mera|meri|batao|tell me|recall|password|number|address|account|pin|email|wo|woh|pichla|last|check|saved|h|hai|bata|dekh|kya h|kya hai)\b/i.test(message);
+    if (smartResult && (smartResult.source === 'memory' || isRecallQuery)) {
+      await sql`INSERT INTO chat_history (user_id, role, content) VALUES (${userId}, 'assistant', ${smartResult.response})`;
+      return res.json({ intent: 'chat', action: 'answer', message: smartResult.response, response: smartResult.response, record: null });
+    }
+
     const memoryContext = memories.length
       ? `User's stored data:\n${memories.map(m => `- ${m.label}: ${m.value} (${m.type})`).join('\n')}`
       : 'No stored data yet.';
@@ -399,6 +462,15 @@ ${goalsContext}
 
 ACTIONS — detect and handle automatically (works in English AND Hinglish):
 1. SAVE info — detect keywords: "password", "number", "address", "account", "pin", "id", "pasword hai", "ka password", "mera number", "save kar", "note kar", "yaad rakh" → extract label+value and save to memory
+   CRITICAL LABEL RULES:
+   - If user mentions "10th" related info → label MUST start with "10th" (e.g. "10th Roll Number", "10th Passing Year", "10th Percentage", "10th Marks")
+   - If user mentions "12th" related info → label MUST start with "12th" (e.g. "12th Roll Number", "12th Passing Year", "12th Percentage")
+   - If user mentions "Gmail" → label MUST start with "Gmail" (e.g. "Gmail Password", "Gmail Recovery Email")
+   - If user mentions "WiFi" → label MUST start with "WiFi" (e.g. "WiFi Password", "WiFi Name")
+   - If user mentions "Phone" → label MUST start with "Phone" (e.g. "Phone Number", "Phone Password")
+   - "passing year", "pass year", "passing saal" always means the year they passed — use label "10th Passing Year" or "12th Passing Year" accordingly
+   - ALWAYS include the class prefix (10th/12th) in the label so related info groups on one card
+   - This ensures related memories group together in one card
 2. RECALL stored info — "what is my password", "mera password kya tha", "mera number batao" → answer from stored data
    RECALL notes — "what is this", "what was that recipe", "tell me about", "kya tha wo", "batao wo formula", "what's the formula for" → search through user's notes and answer from there
    RECALL tasks — "what are my tasks", "what do I need to do", "mera kya kaam hai", "pending tasks", "what's on my list" → search through user's tasks and answer from there
@@ -431,9 +503,22 @@ RESPONSE FORMAT — always return valid JSON only, no markdown:
   "intent": "task|note|memory|goal|chat",
   "action": "create|answer",
   "response": "your natural conversational reply",
-  "save": null or { "type": "password|reminder|fact|contact|date|other", "label": "label", "value": "value" },
+  "save": null or { "type": "password|reminder|fact|contact|date|other", "label": "short descriptive label for this specific info", "value": "value", "append_to_label": null or "exact label of existing card to append this info into" },
   "record_data": null or { "title": "...", "description": "...", "priority": "low|medium|high", "due_date": null, "content": "...", "color": "orange" }
 }
+
+MEMORY GROUPING RULES — very important:
+- Before saving, look at the user's existing stored data shown above
+- If the new info is RELATED to an existing card (same topic/subject/account/platform), set "append_to_label" to that card's EXACT label
+- If it's genuinely NEW info with no related card, set "append_to_label" to null (new card will be created)
+- Examples of RELATED (append):
+  - Existing card "10th CBSE Roll Number" + new info "10th passing year" → append_to_label: "10th CBSE Roll Number"
+  - Existing card "Gmail Password" + new info "gmail recovery email" → append_to_label: "Gmail Password"
+  - Existing card "Phone Password" + new info "phone IMEI number" → append_to_label: "Phone Password"
+  - Existing card "12th CBSE Roll Number" + new info "12th passing year" → append_to_label: "12th CBSE Roll Number"
+- Examples of NEW (don't append):
+  - No bank card exists + new info "SBI account number" → append_to_label: null
+  - No Instagram card + new info "Instagram password" → append_to_label: null
 
 EXAMPLES:
 - "hey" → {"intent":"chat","action":"answer","response":"Hey ${userName}! 👋 What's up?","save":null,"record_data":null}
@@ -491,12 +576,18 @@ EXAMPLES:
 
     let parsed;
     try {
+      // Last 6 turns from DB for AI context (token-efficient)
+      const historyMessages = dbHistory
+        .slice(-6)
+        .map(m => ({ role: m.role, content: m.content }));
+
       const aiResult = await callAI([
-        { role: 'system', content: buildSystemPrompt('groq', 'llama-3.3-70b-versatile') },
+        { role: 'system', content: buildSystemPrompt('gemini', 'gemini-2.0-flash') },
+        ...historyMessages,
         { role: 'user', content: message },
-        { role: 'assistant', content: '{"intent":' },
       ]);
-      const raw = '{"intent":' + aiResult.content;
+      let raw = aiResult.content.trim();
+      raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('No JSON in response');
       parsed = JSON.parse(jsonMatch[0]);
@@ -509,13 +600,34 @@ EXAMPLES:
 
     // Auto-save memory if AI detected something to store
     if (parsed.save) {
-      const { type, label, value } = parsed.save;
-      const [memory] = await sql`
-        INSERT INTO memories (user_id, type, label, value, raw_input)
-        VALUES (${userId}, ${type}, ${label}, ${value}, ${message})
-        ON CONFLICT DO NOTHING
-        RETURNING *`;
-      savedRecord = memory;
+      const { type, label, value, append_to_label } = parsed.save;
+
+      // AI decides which existing card to append to (if any)
+      const targetLabel = append_to_label?.trim();
+      const existingMemory = targetLabel
+        ? memories.find(m => m.label.toLowerCase() === targetLabel.toLowerCase())
+        : null;
+
+      if (existingMemory) {
+        const newLine = `${label}: ${value}`;
+        const alreadyExists = existingMemory.value.split('\n').some(l => l.toLowerCase() === newLine.toLowerCase());
+        if (!alreadyExists) {
+          const [memory] = await sql`
+            UPDATE memories
+            SET value = ${existingMemory.value + '\n' + newLine}, raw_input = ${message}
+            WHERE id = ${existingMemory.id}
+            RETURNING *`;
+          savedRecord = memory;
+        } else {
+          savedRecord = existingMemory;
+        }
+      } else {
+        const [memory] = await sql`
+          INSERT INTO memories (user_id, type, label, value, raw_input)
+          VALUES (${userId}, ${type}, ${label}, ${value}, ${message})
+          RETURNING *`;
+        savedRecord = memory;
+      }
     }
 
     // Save task if detected
@@ -582,7 +694,10 @@ EXAMPLES:
       savedRecord = goal;
     }
 
-    res.json({
+    // Save assistant response to DB
+    await sql`INSERT INTO chat_history (user_id, role, content) VALUES (${userId}, 'assistant', ${parsed.response})`;
+
+    return res.json({
       intent: parsed.intent || 'chat',
       action: parsed.action || 'answer',
       message: parsed.response,
@@ -597,6 +712,28 @@ EXAMPLES:
       error: err.message,
       response: 'Sorry, I ran into an error. Please try again.',
     });
+  }
+};
+
+const getChatHistory = async (req, res) => {
+  try {
+    const rows = await sql`
+      SELECT role, content, created_at FROM chat_history
+      WHERE user_id = ${req.user.id}
+      ORDER BY created_at ASC
+    `;
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const clearChatHistory = async (req, res) => {
+  try {
+    await sql`DELETE FROM chat_history WHERE user_id = ${req.user.id}`;
+    res.json({ message: 'History cleared' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
@@ -948,4 +1085,4 @@ IMPORTANT: Detect the user's language. If they write in Hindi/Hinglish, reply in
   }
 };
 
-module.exports = { processMessage, getSuggestions, summarizePDF, extractPoints, generateRoadmap, goalChat };
+module.exports = { processMessage, getSuggestions, summarizePDF, extractPoints, generateRoadmap, goalChat, getChatHistory, clearChatHistory };

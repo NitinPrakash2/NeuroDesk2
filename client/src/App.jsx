@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import FloatingChat from './components/FloatingChat';
 import MainLayout from './components/layout/MainLayout';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
@@ -26,7 +27,7 @@ function AnimatedRoutes() {
           path="/app/*"
           element={
             <ProtectedRoute>
-              {/* If you are using MainLayout for your sidebar, it usually wraps these Routes! */}
+              <FloatingChat />
               <Routes>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/tasks" element={<Tasks />} />

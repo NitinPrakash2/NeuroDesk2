@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -7,51 +7,10 @@ export default function Analytics() {
   const { user, logout } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [isChatClosing, setIsChatClosing] = useState(false);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatInput, setChatInput] = useState('');
-  const [chatLoading, setChatLoading] = useState(false);
-  const chatEndRef = useRef(null);
 
   useEffect(() => {
     api.get('/analytics').then(r => { setData(r.data); setLoading(false); }).catch(() => setLoading(false));
   }, []);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages]);
-
-  const handleSendMessage = async () => {
-    if (!chatInput.trim() || chatLoading) return;
-    const userMessage = chatInput.trim();
-    setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-    setChatInput('');
-    setChatLoading(true);
-    setChatMessages(prev => [...prev, { role: 'assistant', content: 'Thinking...' }]);
-    try {
-      const res = await api.post('/ai/chat', { message: userMessage });
-      const reply = res.data.response || res.data.message;
-      setChatMessages(prev => {
-        const msgs = [...prev];
-        msgs[msgs.length - 1] = { role: 'assistant', content: reply };
-        return msgs;
-      });
-    } catch {
-      setChatMessages(prev => {
-        const msgs = [...prev];
-        msgs[msgs.length - 1] = { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' };
-        return msgs;
-      });
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  const handleCloseChat = () => {
-    setIsChatClosing(true);
-    setTimeout(() => { setIsChatOpen(false); setIsChatClosing(false); }, 300);
-  };
 
   const navLinks = [
     { to: '/app/dashboard', label: 'Home', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /> },
@@ -364,124 +323,6 @@ export default function Analytics() {
             </>
           )}
         </div>
-      {/* FLOATING CHAT BUTTON */}
-      {!isChatOpen && (
-        <button
-          onClick={() => setIsChatOpen(true)}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-[#5A67D8] text-white rounded-full shadow-lg hover:bg-indigo-600 transition-all duration-300 flex items-center justify-center z-50 hover:scale-110"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-          </svg>
-        </button>
-      )}
-
-      {/* FLOATING AI CHAT PANEL */}
-      {(isChatOpen || isChatClosing) && (
-        <div className={`fixed bottom-10 right-10 w-[380px] bg-white rounded-[24px] shadow-[0_12px_40px_rgb(0,0,0,0.12)] border border-slate-100 overflow-hidden z-50 flex flex-col ${
-          isChatClosing ? 'animate-chatSlideOut' : 'animate-chatSlideIn'
-        }`}>
-          {/* Header */}
-          <div className="px-6 py-4 flex justify-between items-center border-b border-slate-50 bg-gradient-to-r from-indigo-50 to-purple-50">
-            <span className="text-[13px] font-bold text-slate-800 flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-              AI Assistant
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setChatMessages([])}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/80 border border-slate-200 text-[11px] font-bold text-slate-400 rounded-full hover:bg-white hover:text-slate-600 transition-all"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                Clear
-              </button>
-              <button
-                onClick={handleCloseChat}
-                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded-full hover:bg-white/80 transition-all hover:rotate-90"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-          </div>
-
-          {/* Messages */}
-          <div className="px-5 py-4 h-[260px] overflow-y-auto flex flex-col gap-3 bg-gradient-to-br from-[#FAFBFF] to-[#F8FAFC]">
-            {chatMessages.length === 0 ? (
-              <div className="flex flex-col h-full">
-                <div className="flex gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">AI</div>
-                  <div>
-                    <p className="text-[13px] font-bold text-slate-800">Hey {user?.name?.split(' ')[0] || 'there'}! 👋</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Ask me anything about your analytics!</p>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2 mt-auto">
-                  {[
-                    { emoji: '📊', text: 'What is my productivity this week?' },
-                    { emoji: '🎯', text: 'Am I on track with my goals?' },
-                    { emoji: '🔥', text: 'How is my streak going?' },
-                    { emoji: '💡', text: 'Give me productivity tips' },
-                  ].map(q => (
-                    <button
-                      key={q.text}
-                      onClick={() => setChatInput(q.text)}
-                      className="text-[11px] px-3 py-2 bg-white border border-slate-200 rounded-full text-slate-600 font-semibold text-left hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 transition-all"
-                    >
-                      {q.emoji} {q.text}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <>
-                {chatMessages.map((msg, i) => (
-                  <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                    {msg.role === 'assistant' && (
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                        {msg.content === 'Thinking...' ? <div className="w-2 h-2 bg-white rounded-full animate-ping" /> : 'AI'}
-                      </div>
-                    )}
-                    <div className={`text-[11px] p-3 rounded-xl max-w-[80%] leading-relaxed ${
-                      msg.role === 'user'
-                        ? 'bg-gradient-to-br from-indigo-100 to-indigo-200 text-indigo-800 shadow-sm'
-                        : 'bg-white text-slate-700 border border-slate-100 shadow-sm'
-                    }`}>
-                      {msg.content}
-                    </div>
-                    {msg.role === 'user' && (
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                        {user?.name?.charAt(0) || 'U'}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                <div ref={chatEndRef} />
-              </>
-            )}
-          </div>
-
-          {/* Input */}
-          <div className="px-5 py-4 bg-white border-t border-slate-50 flex items-center gap-3">
-            <div className="flex-1 bg-slate-50 rounded-2xl flex items-center px-4 py-2.5 border border-slate-200 focus-within:border-indigo-300 focus-within:bg-white transition-all">
-              <input
-                type="text"
-                placeholder="Ask about your analytics..."
-                className="bg-transparent w-full text-xs font-medium outline-none text-slate-800 placeholder-slate-400"
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-              />
-            </div>
-            <button
-              onClick={handleSendMessage}
-              disabled={!chatInput.trim() || chatLoading}
-              className="w-10 h-10 rounded-full bg-gradient-to-br from-[#5A67D8] to-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 transition-all"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-            </button>
-          </div>
-        </div>
-      )}
       </main>
     </div>
   );
