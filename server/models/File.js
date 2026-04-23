@@ -10,6 +10,8 @@ const createFilesTable = async () => {
         size VARCHAR(50),
         type VARCHAR(50),
         content TEXT,
+        summary TEXT,
+        important_points TEXT,
         created_at TIMESTAMP DEFAULT NOW()
       )
     `;

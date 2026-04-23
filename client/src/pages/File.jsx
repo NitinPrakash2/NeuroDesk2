@@ -1,23 +1,24 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { UploadCloud, FileText, Download, Trash2, Sparkles, List, Loader2, X } from 'lucide-react';
-import axios from 'axios';
+import { UploadCloud, FileText, Download, Trash2, Sparkles, List, Loader2, X, Eye } from 'lucide-react';
+import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 
-const FileItem = ({ name, size, type, onDownload, onDelete, onSummary, onExtract, loading }) => (
-  <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-sm transition-all group">
+const FileItem = ({ file, onView, onDelete, onSummary, onExtract, loading }) => (
+  <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-lg hover:scale-[1.01] transition-all duration-300 group">
     <div className="flex items-center space-x-3 flex-1 min-w-0">
       <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
         <FileText className="w-5 h-5 text-indigo-500" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
-        <p className="text-xs text-gray-500">{size} • {type}</p>
+        <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+        <p className="text-xs text-gray-500">{file.size} • {file.type}</p>
       </div>
     </div>
     <div className="flex items-center space-x-2 ml-4">
-      {type === 'PDF' && (
+      {file.type === 'PDF' && (
         <>
           <button
             onClick={onSummary}
@@ -25,7 +26,7 @@ const FileItem = ({ name, size, type, onDownload, onDelete, onSummary, onExtract
             className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-medium transition-colors flex items-center space-x-1 disabled:opacity-50"
             title="AI Summary"
           >
-            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+            {loading === 'summary' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
             <span>Summary</span>
           </button>
           <button
@@ -34,17 +35,17 @@ const FileItem = ({ name, size, type, onDownload, onDelete, onSummary, onExtract
             className="px-3 py-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 text-xs font-medium transition-colors flex items-center space-x-1 disabled:opacity-50"
             title="Extract Points"
           >
-            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <List className="w-3 h-3" />}
+            {loading === 'extract' ? <Loader2 className="w-3 h-3 animate-spin" /> : <List className="w-3 h-3" />}
             <span>Extract</span>
           </button>
         </>
       )}
       <button
-        onClick={onDownload}
-        className="p-2 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition-colors"
-        title="Download"
+        onClick={onView}
+        className="p-2 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"
+        title="View Details"
       >
-        <Download className="w-4 h-4" />
+        <Eye className="w-4 h-4" />
       </button>
       <button
         onClick={onDelete}
@@ -59,20 +60,72 @@ const FileItem = ({ name, size, type, onDownload, onDelete, onSummary, onExtract
 
 const File = () => {
   const { user } = useAuth();
+  const { notifications, clearNotifications } = useNotifications();
   const [files, setFiles] = useState([]);
   const [loadingFile, setLoadingFile] = useState(null);
+  const [loadingAction, setLoadingAction] = useState(null);
   const [aiResult, setAiResult] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [tasks, setTasks] = useState([]);
+  const [notes, setNotes] = useState([]);
+  const [goals, setGoals] = useState([]);
+  const [memories, setMemories] = useState([]);
+  const [notificationOpen, setNotificationOpen] = useState(false);
 
   React.useEffect(() => {
     fetchFiles();
+    fetchAllData();
   }, []);
+
+  const fetchAllData = async () => {
+    try {
+      const [tasksRes, notesRes, goalsRes, memoriesRes] = await Promise.all([
+        api.get('/tasks'),
+        api.get('/notes'),
+        api.get('/goals'),
+        api.get('/memories'),
+      ]);
+      setTasks(tasksRes.data);
+      setNotes(notesRes.data);
+      setGoals(goalsRes.data);
+      setMemories(memoriesRes.data);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); return; }
+    const q = searchQuery.toLowerCase();
+    const results = [];
+    tasks.forEach(t => {
+      if (t.title?.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q))
+        results.push({ type: 'Task', icon: '✅', title: t.title, sub: t.priority + ' priority', color: 'text-indigo-600 bg-indigo-50' });
+    });
+    notes.forEach(n => {
+      if (n.title?.toLowerCase().includes(q) || (n.content || '').toLowerCase().includes(q))
+        results.push({ type: 'Note', icon: '📝', title: n.title, sub: n.content?.substring(0, 40) || '', color: 'text-orange-600 bg-orange-50' });
+    });
+    goals.forEach(g => {
+      if (g.title?.toLowerCase().includes(q) || (g.description || '').toLowerCase().includes(q))
+        results.push({ type: 'Goal', icon: '🎯', title: g.title, sub: g.progress + '% complete', color: 'text-teal-600 bg-teal-50' });
+    });
+    memories.forEach(m => {
+      if (m.label?.toLowerCase().includes(q) || m.value?.toLowerCase().includes(q))
+        results.push({ type: 'Memory', icon: '🔐', title: m.label, sub: m.type === 'password' ? '••••••••' : m.value?.substring(0, 40), color: 'text-blue-600 bg-blue-50' });
+    });
+    setSearchResults(results);
+  }, [searchQuery, tasks, notes, goals, memories]);
 
   const fetchFiles = async () => {
     try {
-      const res = await axios.get('/api/files', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const res = await api.get('/files');
       setFiles(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Failed to fetch files:', err);
@@ -99,7 +152,7 @@ const File = () => {
             fullText += pageText + '\n';
           }
           
-          resolve(fullText.substring(0, 8000));
+          resolve(fullText.substring(0, 15000));
         } catch (err) {
           reject(err);
         }
@@ -111,35 +164,101 @@ const File = () => {
 
   const handleSummary = async (file) => {
     setLoadingFile(file.id);
+    setLoadingAction('summary');
     try {
-      const text = await extractTextFromPDF(file.file);
-      const res = await axios.post('/api/ai/summarize', { text }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      setAiResult({ type: 'summary', content: res.data.summary, fileName: file.name });
+      // Check if summary already exists
+      if (file.summary) {
+        setAiResult({ type: 'summary', content: file.summary, fileName: file.name });
+        setShowModal(true);
+        toast.success('Summary loaded!');
+        return;
+      }
+
+      // Get full file content from database
+      const fileRes = await api.get(`/files/${file.id}`);
+      const text = fileRes.data.content;
+      
+      if (!text) {
+        toast.error('No content found in file');
+        return;
+      }
+
+      const res = await api.post('/ai/summarize', { text });
+      const summary = res.data.summary;
+
+      // Save summary to database
+      await api.patch(`/files/${file.id}/summary`, { summary });
+
+      setAiResult({ type: 'summary', content: summary, fileName: file.name });
       setShowModal(true);
       toast.success('Summary generated!');
+
+      // Update local state
+      setFiles(prev => prev.map(f => f.id === file.id ? { ...f, summary } : f));
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to generate summary');
     } finally {
       setLoadingFile(null);
+      setLoadingAction(null);
     }
   };
 
   const handleExtract = async (file) => {
     setLoadingFile(file.id);
+    setLoadingAction('extract');
     try {
-      const text = await extractTextFromPDF(file.file);
-      const res = await axios.post('/api/ai/extract', { text }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      setAiResult({ type: 'points', content: res.data.points, fileName: file.name });
+      // Check if points already exist
+      if (file.important_points) {
+        const points = JSON.parse(file.important_points);
+        setAiResult({ type: 'points', content: points, fileName: file.name });
+        setShowModal(true);
+        toast.success('Important points loaded!');
+        return;
+      }
+
+      // Extract and auto-save to Notes & Memory
+      toast.loading('Extracting and saving important points...', { id: 'extract' });
+      const res = await api.post('/ai/extract-and-save', { fileId: file.id });
+      const { points, savedNotes, savedMemories, message } = res.data;
+
+      setAiResult({ type: 'points', content: points, fileName: file.name });
       setShowModal(true);
-      toast.success('Important points extracted!');
+      
+      toast.success(
+        `${message}\n✅ ${savedNotes} note(s) created\n💾 ${savedMemories} memory(ies) saved`,
+        { id: 'extract', duration: 5000 }
+      );
+
+      // Update local state
+      setFiles(prev => prev.map(f => f.id === file.id ? { ...f, important_points: JSON.stringify(points) } : f));
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to extract points');
+      toast.error(err.response?.data?.message || 'Failed to extract points', { id: 'extract' });
     } finally {
       setLoadingFile(null);
+      setLoadingAction(null);
+    }
+  };
+
+  const handleView = async (file) => {
+    try {
+      const res = await api.get(`/files/${file.id}`);
+      const fullFile = res.data;
+      
+      let content = fullFile.content || 'No content available';
+      if (content.length > 2000) {
+        content = content.substring(0, 2000) + '...';
+      }
+
+      setAiResult({ 
+        type: 'view', 
+        content, 
+        fileName: file.name,
+        summary: fullFile.summary,
+        points: fullFile.important_points ? JSON.parse(fullFile.important_points) : null
+      });
+      setShowModal(true);
+    } catch (err) {
+      toast.error('Failed to load file details');
     }
   };
 
@@ -147,11 +266,23 @@ const File = () => {
     const uploadedFiles = Array.from(event.target.files);
     if (uploadedFiles.length === 0) return;
 
+    setUploading(true);
+
     for (const file of uploadedFiles) {
+      const toastId = file.name;
       try {
         let content = null;
+        
         if (file.type === 'application/pdf') {
-          content = await extractTextFromPDF(file);
+          toast.loading(`Extracting text from ${file.name}...`, { id: toastId });
+          try {
+            content = await extractTextFromPDF(file);
+            console.log('PDF text extracted, length:', content?.length);
+          } catch (pdfError) {
+            console.error('PDF extraction error:', pdfError);
+            toast.error(`Could not extract text from ${file.name}. Uploading without content.`, { id: toastId });
+            content = null;
+          }
         }
 
         const fileData = {
@@ -161,39 +292,32 @@ const File = () => {
           content: content,
         };
 
-        const res = await axios.post('/api/files', fileData, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-
-        setFiles(prev => [{ ...res.data, file }, ...prev]);
-        toast.success(`${file.name} uploaded!`);
+        console.log('Uploading file:', fileData.name, 'Content length:', fileData.content?.length);
+        
+        const res = await api.post('/files', fileData);
+        setFiles(prev => [res.data, ...prev]);
+        toast.success(`${file.name} uploaded!`, { id: toastId });
       } catch (err) {
-        toast.error(`Failed to upload ${file.name}`);
+        console.error('Upload error:', err);
+        const errorMsg = err.response?.data?.message || err.message || 'Upload failed';
+        toast.error(`Failed to upload ${file.name}: ${errorMsg}`, { id: toastId });
       }
     }
+
+    setUploading(false);
+    event.target.value = '';
   };
 
   const handleDelete = async (idToRemove) => {
+    if (!confirm('Are you sure you want to delete this file?')) return;
+    
     try {
-      await axios.delete(`/api/files/${idToRemove}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      await api.delete(`/files/${idToRemove}`);
       setFiles((prevFiles) => prevFiles.filter(file => file.id !== idToRemove));
       toast.success('File deleted');
     } catch (err) {
       toast.error('Failed to delete file');
     }
-  };
-
-  const handleDownload = (file) => {
-    const url = URL.createObjectURL(file.file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   };
 
   return (
@@ -203,7 +327,7 @@ const File = () => {
       <aside className="w-[260px] bg-white h-full flex flex-col border-r border-slate-100 flex-shrink-0 z-10">
         <div className="p-8 flex items-center gap-3">
           <div className="w-8 h-8 rounded-full flex items-center justify-center">
-            <svg className="w-8 h-8 text-[#5A67D8]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            <img src="/Fevicon.png" alt="NeuroDesk" className="w-8 h-8 rounded-full" />
           </div>
           <span className="font-bold text-[19px] text-slate-800 tracking-tight">NeuroDesk</span>
         </div>
@@ -233,10 +357,10 @@ const File = () => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
             Goals
           </Link>
-          <a href="#" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
+          <Link to="/app/analytics" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
             Analytics
-          </a>
+          </Link>
         </nav>
 
         <div className="p-3 m-4 border border-slate-100 rounded-2xl flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors">
@@ -245,7 +369,6 @@ const File = () => {
             <p className="text-sm font-bold text-slate-800">{user?.name || 'User'}</p>
             <p className="text-xs font-semibold text-slate-400">Free plan</p>
           </div>
-          <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
         </div>
       </aside>
 
@@ -253,39 +376,142 @@ const File = () => {
       <main className="flex-1 h-full overflow-y-auto p-8 relative">
         <div className="max-w-[1200px] mx-auto pb-24">
 
-    <div className="max-w-4xl mx-auto p-6 min-h-screen">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Files</h1>
-        <p className="text-gray-500 mt-1">Upload and manage your documents</p>
-      </div>
+          {/* TOP BAR */}
+          <header className="flex justify-between items-center mb-10">
+            {/* Search */}
+            <div className="flex items-center gap-2">
+              {searchOpen && (
+                <div className="relative w-[380px] animate-[slideIn_0.3s_ease-out]">
+                  <svg className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  <input
+                    type="text"
+                    placeholder="Search anything..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => setSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-full text-sm font-medium focus:outline-none focus:border-indigo-500 shadow-sm"
+                    autoFocus
+                  />
 
-      <div className="relative group mb-8">
-        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-gray-200 rounded-3xl bg-gray-50 hover:bg-indigo-50 hover:border-indigo-300 transition-all duration-300 cursor-pointer">
-          <div className="p-4 bg-white rounded-2xl text-indigo-500 mb-4 group-hover:scale-110 transition-transform shadow-sm">
-            <UploadCloud size={32} />
+                  {searchFocused && searchQuery.trim() && (
+                    <div className="absolute top-12 left-0 w-full bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden">
+                      {searchResults.length > 0 ? (
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase px-4 pt-3 pb-1">{searchResults.length} result{searchResults.length > 1 ? 's' : ''} found</p>
+                          {searchResults.slice(0, 8).map((r, i) => (
+                            <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 cursor-pointer">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.color}`}>{r.type}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-slate-800 truncate">{r.title}</p>
+                                {r.sub && <p className="text-[11px] text-slate-400 truncate">{r.sub}</p>}
+                              </div>
+                            </div>
+                          ))}
+                          {searchResults.length > 8 && (
+                            <p className="text-[11px] text-slate-400 text-center py-2">+{searchResults.length - 8} more results</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="px-4 py-6 text-center">
+                          <p className="text-sm font-medium text-slate-500">No results for "{searchQuery}"</p>
+                          <p className="text-xs text-slate-400 mt-1">Try searching tasks, notes, goals or memories</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              <button
+                onClick={() => { setSearchOpen(o => !o); if (searchOpen) { setSearchQuery(''); setSearchResults([]); } }}
+                className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full border shadow-sm transition-colors ${searchOpen ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              </button>
+            </div>
+            
+            {/* Actions & Profile */}
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setShowUploadModal(true)}
+                disabled={uploading}
+                className="flex items-center gap-2 px-4 py-2.5 bg-[#5A67D8] text-white rounded-xl text-sm font-bold hover:bg-indigo-600 transition-colors shadow-sm disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                {uploading ? 'Uploading...' : 'Add File'}
+              </button>
+              
+              <div className="flex items-center gap-2 ml-2">
+                <div className="relative">
+                  <button
+                    onClick={() => setNotificationOpen(o => !o)}
+                    className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-500 hover:bg-slate-50 shadow-sm relative"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                    {notifications.length > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>}
+                  </button>
+
+                  {notificationOpen && (
+                    <div className="absolute top-12 right-0 w-[380px] bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-slate-800">Notifications</h3>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-bold text-slate-400">{notifications.length} new</span>
+                          {notifications.length > 0 && (
+                            <button
+                              onClick={() => { clearNotifications(); setNotificationOpen(false); }}
+                              className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors"
+                            >
+                              Clear All
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="max-h-[400px] overflow-y-auto">
+                        {notifications.length > 0 ? (
+                          notifications.map((n, i) => {
+                            const timeAgo = Math.floor((new Date() - n.time) / 60000);
+                            const timeStr = timeAgo < 1 ? 'Just now' : timeAgo < 60 ? `${timeAgo}m ago` : timeAgo < 1440 ? `${Math.floor(timeAgo / 60)}h ago` : `${Math.floor(timeAgo / 1440)}d ago`;
+                            return (
+                              <div key={i} className="px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 cursor-pointer">
+                                <div className="flex items-start gap-3">
+                                  <span className={`text-xs font-bold px-2 py-1 rounded-lg ${n.color} flex-shrink-0`}>{n.type}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-slate-800 truncate">{n.title}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">{n.sub}</p>
+                                    <p className="text-[10px] text-slate-400 mt-1 font-medium">{timeStr}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="px-4 py-8 text-center">
+                            <p className="text-sm font-medium text-slate-500">No notifications</p>
+                            <p className="text-xs text-slate-400 mt-1">You're all caught up!</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} alt="Profile" className="w-10 h-10 rounded-full ml-1" />
+              </div>
+            </div>
+          </header>
+
+          {/* WELCOME */}
+          <div className="mb-8">
+            <h1 className="text-[28px] font-bold text-slate-800 mb-2 flex items-center gap-2">
+              My Files <span className="text-2xl">📁</span>
+            </h1>
+            <p className="text-slate-500 text-sm font-medium">Upload and manage your documents with AI-powered insights</p>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900">Click to upload files</h3>
-          <p className="text-sm text-gray-500 mt-2">or drag and drop your files here</p>
-          <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX, TXT, PNG, JPG</p>
-          
-          <input 
-            type="file" 
-            accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" 
-            multiple
-            onChange={handleFileUpload}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            title=""
-          />
-        </div>
-      </div>
 
+      {/* FILES LIST */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
-          Uploaded Files ({Array.isArray(files) ? files.length : 0})
-        </h3>
-        
         {!Array.isArray(files) || files.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
+          <div className="text-center py-16 bg-white rounded-2xl border border-gray-100 hover:shadow-lg transition-all duration-300">
             <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
               <FileText className="w-8 h-8 text-gray-300" />
             </div>
@@ -294,32 +520,77 @@ const File = () => {
           </div>
         ) : (
           <div className="flex flex-col space-y-2">
-            {files.map((file) => (
+            {files.filter(file => 
+              file.name.toLowerCase().includes(searchQuery.toLowerCase())
+            ).map((file) => (
               <FileItem 
                 key={file.id}
-                name={file.name}
-                size={file.size}
-                type={file.type}
-                onDownload={() => handleDownload(file)}
+                file={file}
+                onView={() => handleView(file)}
                 onDelete={() => handleDelete(file.id)}
                 onSummary={() => handleSummary(file)}
                 onExtract={() => handleExtract(file)}
-                loading={loadingFile === file.id}
+                loading={loadingFile === file.id ? loadingAction : null}
               />
             ))}
           </div>
         )}
       </div>
 
-      </div>
+      {/* ================= UPLOAD MODAL ================= */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowUploadModal(false)}>
+          <div 
+            className="bg-white rounded-[24px] p-8 w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-300" 
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-slate-800">Upload Files</h2>
+              <button 
+                onClick={() => setShowUploadModal(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
+            <div className="relative group">
+              <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-gray-200 rounded-3xl bg-gray-50 hover:bg-indigo-50 hover:border-indigo-300 transition-all duration-300 cursor-pointer">
+                <div className="p-4 bg-white rounded-2xl text-indigo-500 mb-4 group-hover:scale-110 transition-transform shadow-sm">
+                  {uploading ? <Loader2 size={32} className="animate-spin" /> : <UploadCloud size={32} />}
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {uploading ? 'Uploading...' : 'Click to upload files'}
+                </h3>
+                <p className="text-sm text-gray-500 mt-2">or drag and drop your files here</p>
+                <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX, TXT (AI features work best with PDF)</p>
+                
+                <input 
+                  type="file" 
+                  accept=".pdf,.doc,.docx,.txt" 
+                  multiple
+                  onChange={(e) => {
+                    handleFileUpload(e);
+                    if (!uploading) setShowUploadModal(false);
+                  }}
+                  disabled={uploading}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                  title=""
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= VIEW MODAL ================= */}
       {showModal && aiResult && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">
-                  {aiResult.type === 'summary' ? '📄 AI Summary' : '✨ Important Points'}
+                  {aiResult.type === 'summary' ? '📄 AI Summary' : aiResult.type === 'points' ? '✨ Important Points' : '📁 File Details'}
                 </h2>
                 <p className="text-sm text-gray-500 mt-1">{aiResult.fileName}</p>
               </div>
@@ -333,7 +604,7 @@ const File = () => {
             <div className="p-6 overflow-y-auto flex-1">
               {aiResult.type === 'summary' ? (
                 <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{aiResult.content}</p>
-              ) : (
+              ) : aiResult.type === 'points' ? (
                 <ul className="space-y-3">
                   {aiResult.content.map((point, idx) => (
                     <li key={idx} className="flex items-start space-x-3">
@@ -344,6 +615,34 @@ const File = () => {
                     </li>
                   ))}
                 </ul>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Content Preview</h3>
+                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm">{aiResult.content}</p>
+                  </div>
+                  {aiResult.summary && (
+                    <div className="pt-4 border-t">
+                      <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">AI Summary</h3>
+                      <p className="text-gray-700 leading-relaxed">{aiResult.summary}</p>
+                    </div>
+                  )}
+                  {aiResult.points && (
+                    <div className="pt-4 border-t">
+                      <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Important Points</h3>
+                      <ul className="space-y-2">
+                        {aiResult.points.map((point, idx) => (
+                          <li key={idx} className="flex items-start space-x-2">
+                            <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-semibold flex-shrink-0 mt-0.5">
+                              {idx + 1}
+                            </span>
+                            <span className="text-gray-700 text-sm flex-1">{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

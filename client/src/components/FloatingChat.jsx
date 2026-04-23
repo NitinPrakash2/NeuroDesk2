@@ -1,14 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
+import { useChat } from '../context/ChatContext';
 import api from '../services/api';
 
 export default function FloatingChat() {
   const { user } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
+  const { addNotification } = useNotifications();
+  const { isChatOpen, setIsChatOpen } = useChat();
   const [isClosing, setIsClosing] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [lastUsedProvider, setLastUsedProvider] = useState(null);
   const chatEndRef = useRef(null);
 
   // Load history from DB on mount
@@ -36,6 +40,28 @@ export default function FloatingChat() {
     try {
       const res = await api.post('/ai/chat', { message: userMessage });
       let responseContent = res.data.response || res.data.message;
+      
+      // Check if AI provider changed and add notification
+      const usedProvider = res.data.aiProvider;
+      const usedModel = res.data.aiModel;
+      if (usedProvider && usedModel && lastUsedProvider !== `${usedProvider}-${usedModel}`) {
+        setLastUsedProvider(`${usedProvider}-${usedModel}`);
+        const providerNames = {
+          'groq': '🚀 Groq',
+          'gemini': '✨ Google Gemini',
+          'mistral': '🔥 Mistral AI',
+          'openrouter': '🌐 OpenRouter'
+        };
+        const providerName = providerNames[usedProvider] || usedProvider;
+        addNotification({
+          type: 'AI Provider',
+          icon: '🤖',
+          title: `Using ${providerName}`,
+          sub: usedModel,
+          color: 'bg-purple-50 text-purple-600'
+        });
+      }
+      
       if (res.data.record) {
         const emoji = { memory: '🧠', task: '✅', note: '📝', goal: '🎯' }[res.data.intent] || '💾';
         responseContent += `\n\n${emoji} Saved to ${res.data.intent}s!`;
@@ -54,7 +80,7 @@ export default function FloatingChat() {
 
   const handleClose = () => {
     setIsClosing(true);
-    setTimeout(() => { setIsOpen(false); setIsClosing(false); }, 300);
+    setTimeout(() => { setIsChatOpen(false); setIsClosing(false); }, 300);
   };
 
   const handleClear = async () => {
@@ -65,7 +91,7 @@ export default function FloatingChat() {
   return (
     <>
       {/* FAB buttons */}
-      {!isOpen && (
+      {!isChatOpen && (
         <div className="fixed bottom-6 right-6 flex flex-col items-center gap-2 z-50">
           {chatMessages.length > 0 && (
             <button
@@ -78,7 +104,7 @@ export default function FloatingChat() {
             </button>
           )}
           <button
-            onClick={() => setIsOpen(true)}
+            onClick={() => setIsChatOpen(true)}
             className="w-14 h-14 bg-[#5A67D8] text-white rounded-full shadow-lg hover:bg-indigo-600 transition-all duration-300 flex items-center justify-center hover:scale-110"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -89,7 +115,7 @@ export default function FloatingChat() {
       )}
 
       {/* Chat Panel */}
-      {(isOpen || isClosing) && (
+      {(isChatOpen || isClosing) && (
         <div className={`fixed bottom-10 right-10 w-[380px] bg-white rounded-[24px] shadow-[0_12px_40px_rgb(0,0,0,0.12)] border border-slate-100 overflow-hidden z-50 flex flex-col ${isClosing ? 'animate-chatSlideOut' : 'animate-chatSlideIn'}`}>
           {/* Header */}
           <div className="px-6 py-4 flex justify-between items-center border-b border-slate-50 bg-gradient-to-r from-indigo-50 to-purple-50">

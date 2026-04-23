@@ -1,20 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 import api from '../services/api';
 
 export default function Notes() {
   const { user } = useAuth();
+  const { notifications, clearNotifications } = useNotifications();
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
+  const [viewingNote, setViewingNote] = useState(null);
   const [form, setForm] = useState({
     title: '',
     content: '',
     color: 'orange'
   });
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [tasks, setTasks] = useState([]);
+  const [goals, setGoals] = useState([]);
+  const [memories, setMemories] = useState([]);
+  const [notificationOpen, setNotificationOpen] = useState(false);
 
   const colors = [
     { name: 'orange', bg: 'bg-[#FDF1EB]', border: 'border-orange-200', text: 'text-orange-600' },
@@ -27,7 +37,46 @@ export default function Notes() {
 
   useEffect(() => {
     fetchNotes();
+    fetchAllData();
   }, []);
+
+  const fetchAllData = async () => {
+    try {
+      const [tasksRes, goalsRes, memoriesRes] = await Promise.all([
+        api.get('/tasks'),
+        api.get('/goals'),
+        api.get('/memories'),
+      ]);
+      setTasks(tasksRes.data);
+      setGoals(goalsRes.data);
+      setMemories(memoriesRes.data);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); return; }
+    const q = searchQuery.toLowerCase();
+    const results = [];
+    tasks.forEach(t => {
+      if (t.title?.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q))
+        results.push({ type: 'Task', icon: '✅', title: t.title, sub: t.priority + ' priority', color: 'text-indigo-600 bg-indigo-50' });
+    });
+    notes.forEach(n => {
+      if (n.title?.toLowerCase().includes(q) || (n.content || '').toLowerCase().includes(q))
+        results.push({ type: 'Note', icon: '📝', title: n.title, sub: n.content?.substring(0, 40) || '', color: 'text-orange-600 bg-orange-50' });
+    });
+    goals.forEach(g => {
+      if (g.title?.toLowerCase().includes(q) || (g.description || '').toLowerCase().includes(q))
+        results.push({ type: 'Goal', icon: '🎯', title: g.title, sub: g.progress + '% complete', color: 'text-teal-600 bg-teal-50' });
+    });
+    memories.forEach(m => {
+      if (m.label?.toLowerCase().includes(q) || m.value?.toLowerCase().includes(q))
+        results.push({ type: 'Memory', icon: '🔐', title: m.label, sub: m.type === 'password' ? '••••••••' : m.value?.substring(0, 40), color: 'text-blue-600 bg-blue-50' });
+    });
+    setSearchResults(results);
+  }, [searchQuery, tasks, notes, goals, memories]);
 
   const fetchNotes = async () => {
     try {
@@ -165,15 +214,55 @@ export default function Notes() {
           {/* TOP BAR */}
           <header className="flex justify-between items-center mb-10">
             {/* Search */}
-            <div className="relative w-[350px]">
-              <svg className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              <input 
-                type="text" 
-                placeholder="Search notes..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-full text-sm font-medium focus:outline-none focus:border-indigo-500 shadow-sm" 
-              />
+            <div className="flex items-center gap-2">
+              {searchOpen && (
+                <div className="relative w-[380px] animate-[slideIn_0.3s_ease-out]">
+                  <svg className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  <input
+                    type="text"
+                    placeholder="Search anything..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => setSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-full text-sm font-medium focus:outline-none focus:border-indigo-500 shadow-sm"
+                    autoFocus
+                  />
+
+                  {searchFocused && searchQuery.trim() && (
+                    <div className="absolute top-12 left-0 w-full bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden">
+                      {searchResults.length > 0 ? (
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase px-4 pt-3 pb-1">{searchResults.length} result{searchResults.length > 1 ? 's' : ''} found</p>
+                          {searchResults.slice(0, 8).map((r, i) => (
+                            <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 cursor-pointer">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.color}`}>{r.type}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-slate-800 truncate">{r.title}</p>
+                                {r.sub && <p className="text-[11px] text-slate-400 truncate">{r.sub}</p>}
+                              </div>
+                            </div>
+                          ))}
+                          {searchResults.length > 8 && (
+                            <p className="text-[11px] text-slate-400 text-center py-2">+{searchResults.length - 8} more results</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="px-4 py-6 text-center">
+                          <p className="text-sm font-medium text-slate-500">No results for "{searchQuery}"</p>
+                          <p className="text-xs text-slate-400 mt-1">Try searching tasks, notes, goals or memories</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              <button
+                onClick={() => { setSearchOpen(o => !o); if (searchOpen) { setSearchQuery(''); setSearchResults([]); } }}
+                className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full border shadow-sm transition-colors ${searchOpen ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              </button>
             </div>
             
             {/* Actions & Profile */}
@@ -187,13 +276,59 @@ export default function Notes() {
               </button>
               
               <div className="flex items-center gap-2 ml-2">
-                <button className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-500 hover:bg-slate-50 shadow-sm">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                </button>
-                <button className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-500 hover:bg-slate-50 shadow-sm relative">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                  <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setNotificationOpen(o => !o)}
+                    className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-500 hover:bg-slate-50 shadow-sm relative"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                    {notifications.length > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>}
+                  </button>
+
+                  {notificationOpen && (
+                    <div className="absolute top-12 right-0 w-[380px] bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-slate-800">Notifications</h3>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-bold text-slate-400">{notifications.length} new</span>
+                          {notifications.length > 0 && (
+                            <button
+                              onClick={() => { clearNotifications(); setNotificationOpen(false); }}
+                              className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors"
+                            >
+                              Clear All
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="max-h-[400px] overflow-y-auto">
+                        {notifications.length > 0 ? (
+                          notifications.map((n, i) => {
+                            const timeAgo = Math.floor((new Date() - n.time) / 60000);
+                            const timeStr = timeAgo < 1 ? 'Just now' : timeAgo < 60 ? `${timeAgo}m ago` : timeAgo < 1440 ? `${Math.floor(timeAgo / 60)}h ago` : `${Math.floor(timeAgo / 1440)}d ago`;
+                            return (
+                              <div key={i} className="px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 cursor-pointer">
+                                <div className="flex items-start gap-3">
+                                  <span className={`text-xs font-bold px-2 py-1 rounded-lg ${n.color} flex-shrink-0`}>{n.type}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-slate-800 truncate">{n.title}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">{n.sub}</p>
+                                    <p className="text-[10px] text-slate-400 mt-1 font-medium">{timeStr}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="px-4 py-8 text-center">
+                            <p className="text-sm font-medium text-slate-500">No notifications</p>
+                            <p className="text-xs text-slate-400 mt-1">You're all caught up!</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} alt="Profile" className="w-10 h-10 rounded-full ml-1" />
               </div>
             </div>
@@ -219,7 +354,8 @@ export default function Notes() {
                 return (
                   <div 
                     key={note.id} 
-                    className={`${colorClass.bg} p-6 rounded-[20px] shadow-sm border ${colorClass.border} hover:shadow-md transition-all duration-200 group relative min-h-[200px] flex flex-col`}
+                    onClick={() => setViewingNote(note)}
+                    className={`${colorClass.bg} p-6 rounded-[20px] shadow-sm border ${colorClass.border} hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group relative min-h-[200px] flex flex-col cursor-pointer`}
                   >
                     <h3 className="text-base font-bold text-slate-800 mb-3 pr-8">{note.title}</h3>
                     <p className="text-sm text-slate-600 font-medium leading-relaxed flex-1 line-clamp-6">
@@ -277,6 +413,47 @@ export default function Notes() {
 
         </div>
       </main>
+
+      {/* ================= VIEW NOTE MODAL ================= */}
+      {viewingNote && (() => {
+        const colorClass = getColorClasses(viewingNote.color);
+        return (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setViewingNote(null)}>
+            <div className="bg-white rounded-[24px] w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className={`${colorClass.bg} border-b ${colorClass.border} p-6`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800">{viewingNote.title}</h2>
+                    <p className="text-xs text-slate-500 mt-1 font-medium">{new Date(viewingNote.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <button onClick={() => setViewingNote(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/60 transition-colors">
+                    <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{viewingNote.content || 'No content'}</p>
+              </div>
+              <div className="px-6 pb-6 flex gap-3 border-t border-slate-100 pt-4">
+                <button
+                  onClick={() => { setViewingNote(null); handleEditNote(viewingNote); }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  Edit
+                </button>
+                <button
+                  onClick={() => { deleteNote(viewingNote.id); setViewingNote(null); }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 border border-red-100 rounded-xl text-sm font-bold text-red-500 hover:bg-red-100 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ================= MODAL ================= */}
       {showModal && (

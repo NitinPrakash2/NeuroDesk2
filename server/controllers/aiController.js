@@ -1,36 +1,5 @@
 const { sql } = require('../config/db');
 
-// Smart local history match — no AI tokens needed
-function smartHistoryAnswer(message, dbHistory, memories) {
-  const msg = message.toLowerCase().trim();
-
-  // 1. Direct memory DB match — always works regardless of query type
-  for (const m of memories) {
-    const labelWords = m.label.toLowerCase().split(' ');
-    if (labelWords.every(w => msg.includes(w))) {
-      const response = m.type === 'password'
-        ? `Your ${m.label} is: ${m.value} 🔐`
-        : `Your ${m.label}: ${m.value}`;
-      return { response, source: 'memory' };
-    }
-  }
-
-  // 2. Recall from chat history
-  const stopWords = /\b(what|is|my|mera|kya|tha|hai|batao|tell|me|the|a|an|bhai|yaar|check|kro|dekh|saved|h|ka|ki|ke)\b/g;
-  const keywords = msg.replace(stopWords, '').trim().split(/\s+/).filter(w => w.length > 2);
-  if (keywords.length > 0) {
-    for (const turn of [...dbHistory].reverse()) {
-      if (turn.role === 'assistant') {
-        const contentLower = turn.content.toLowerCase();
-        if (keywords.some(k => contentLower.includes(k))) {
-          return { response: turn.content, source: 'history' };
-        }
-      }
-    }
-  }
-  return null;
-}
-
 const FREE_MODELS = [
   'openai/gpt-oss-120b:free',
   'openai/gpt-oss-20b:free',
@@ -66,8 +35,14 @@ async function callGroq(messages) {
       });
       const json = await res.json();
       if (!res.ok) {
-        console.log(`Groq model ${model} failed:`, json.error?.message);
-        lastError = new Error(json.error?.message || 'Groq error');
+        const errorMsg = json.error?.message || 'Groq error';
+        console.log(`Groq model ${model} failed:`, errorMsg);
+        // Check for rate limit errors
+        if (res.status === 429 || errorMsg.toLowerCase().includes('rate limit') || errorMsg.toLowerCase().includes('quota')) {
+          lastError = new Error('RATE_LIMIT: ' + errorMsg);
+          break; // Stop trying other Groq models, switch provider
+        }
+        lastError = new Error(errorMsg);
         continue;
       }
       const content = json.choices?.[0]?.message?.content;
@@ -118,8 +93,14 @@ async function callGemini(messages) {
       });
       const json = await res.json();
       if (!res.ok) {
-        console.log(`Gemini ${model} failed:`, json.error?.message);
-        lastError = new Error(json.error?.message || 'Gemini error');
+        const errorMsg = json.error?.message || 'Gemini error';
+        console.log(`Gemini ${model} failed:`, errorMsg);
+        // Check for rate limit errors
+        if (res.status === 429 || errorMsg.toLowerCase().includes('rate limit') || errorMsg.toLowerCase().includes('quota') || errorMsg.toLowerCase().includes('resource_exhausted')) {
+          lastError = new Error('RATE_LIMIT: ' + errorMsg);
+          break; // Stop trying other Gemini models, switch provider
+        }
+        lastError = new Error(errorMsg);
         continue;
       }
       const content = json.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -152,8 +133,14 @@ async function callOpenRouter(messages) {
       const json = await res.json();
       const content = json.choices?.[0]?.message?.content;
       if (!res.ok || !content) {
-        console.log(`Model ${model} failed:`, json.error?.message || 'No content');
-        lastError = new Error(json.error?.message || 'No content');
+        const errorMsg = json.error?.message || 'No content';
+        console.log(`Model ${model} failed:`, errorMsg);
+        // Check for rate limit errors
+        if (res.status === 429 || errorMsg.toLowerCase().includes('rate limit') || errorMsg.toLowerCase().includes('quota')) {
+          lastError = new Error('RATE_LIMIT: ' + errorMsg);
+          continue; // Try next model
+        }
+        lastError = new Error(errorMsg);
         continue;
       }
       return { content: content.trim(), provider: 'openrouter', model };
@@ -165,16 +152,66 @@ async function callOpenRouter(messages) {
   throw lastError;
 }
 
+// Mistral AI
+async function callMistral(messages) {
+  if (!process.env.MISTRAL_API_KEY || process.env.MISTRAL_API_KEY === '<your_mistral_api_key>') throw new Error('No Mistral key');
+
+  const mistralModels = [
+    'mistral-large-latest',
+    'mistral-small-latest',
+    'open-mistral-7b',
+  ];
+
+  let lastError;
+  for (const model of mistralModels) {
+    try {
+      const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model, messages, max_tokens: 500 }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const errorMsg = json.error?.message || 'Mistral error';
+        console.log(`Mistral model ${model} failed:`, errorMsg);
+        // Check for rate limit errors
+        if (res.status === 429 || errorMsg.toLowerCase().includes('rate limit') || errorMsg.toLowerCase().includes('quota')) {
+          lastError = new Error('RATE_LIMIT: ' + errorMsg);
+          break; // Stop trying other Mistral models, switch provider
+        }
+        lastError = new Error(errorMsg);
+        continue;
+      }
+      const content = json.choices?.[0]?.message?.content;
+      if (!content) { lastError = new Error('No content from Mistral'); continue; }
+      console.log(`Mistral model ${model} succeeded`);
+      return { content: content.trim(), provider: 'mistral', model };
+    } catch (err) {
+      console.log(`Mistral model ${model} error:`, err.message);
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
+
 async function callAI(messages) {
   try {
-    return await callGroq(messages);
-  } catch (groqErr) {
-    console.log('Groq failed, trying Gemini:', groqErr.message);
+    return await callGemini(messages);
+  } catch (geminiErr) {
+    console.log('Gemini failed, trying Groq:', geminiErr.message);
     try {
-      return await callGemini(messages);
-    } catch (geminiErr) {
-      console.log('Gemini failed, trying OpenRouter:', geminiErr.message);
-      return await callOpenRouter(messages);
+      return await callGroq(messages);
+    } catch (groqErr) {
+      console.log('Groq failed, trying Mistral:', groqErr.message);
+      try {
+        return await callMistral(messages);
+      } catch (mistralErr) {
+        console.log('Mistral failed, trying OpenRouter:', mistralErr.message);
+        return await callOpenRouter(messages);
+      }
     }
   }
 }
@@ -315,29 +352,20 @@ const processMessage = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Fetch DB chat history (last 40 messages for smart matching, last 6 for AI)
+    // Save user message to DB
+    await sql`INSERT INTO chat_history (user_id, role, content) VALUES (${userId}, 'user', ${message.trim()})`;
+
+    // Fetch last 6 turns for AI context
     const dbHistory = await sql`
       SELECT role, content FROM chat_history
       WHERE user_id = ${userId}
-      ORDER BY created_at DESC LIMIT 40
+      ORDER BY created_at DESC LIMIT 6
     `.then(rows => rows.reverse());
-
-    // Save user message to DB
-    await sql`INSERT INTO chat_history (user_id, role, content) VALUES (${userId}, 'user', ${message.trim()})`;
 
     const [userProfile] = await sql`SELECT name FROM users WHERE id = ${userId}`;
     const userName = userProfile?.name || 'there';
 
     const memories = await sql`SELECT id, type, label, value FROM memories WHERE user_id = ${userId}`;
-
-    // Smart local answer — memory match always returns, history match only on recall queries
-    const smartResult = smartHistoryAnswer(message, dbHistory, memories);
-    const isRecallQuery = /\b(kya tha|what is|what was|mera|meri|batao|tell me|recall|password|number|address|account|pin|email|wo|woh|pichla|last|check|saved|h|hai|bata|dekh|kya h|kya hai)\b/i.test(message);
-    if (smartResult && (smartResult.source === 'memory' || isRecallQuery)) {
-      await sql`INSERT INTO chat_history (user_id, role, content) VALUES (${userId}, 'assistant', ${smartResult.response})`;
-      return res.json({ intent: 'chat', action: 'answer', message: smartResult.response, response: smartResult.response, record: null });
-    }
-
     const memoryContext = memories.length
       ? `User's stored data:\n${memories.map(m => `- ${m.label}: ${m.value} (${m.type})`).join('\n')}`
       : 'No stored data yet.';
@@ -354,10 +382,19 @@ const processMessage = async (req, res) => {
       ? `User's tasks:\n${tasks.map(t => `- ${t.title}${t.description ? ': ' + t.description : ''} [${t.status}, ${t.priority} priority]`).join('\n')}`
       : 'No tasks yet.';
 
-    // Fetch user's files for context
-    const files = await sql`SELECT name, type, content FROM files WHERE user_id = ${userId} AND content IS NOT NULL ORDER BY created_at DESC LIMIT 20`;
+    // Fetch user's files for context - FULL CONTENT for better answers
+    const files = await sql`SELECT name, type, content, summary, important_points FROM files WHERE user_id = ${userId} AND content IS NOT NULL ORDER BY created_at DESC LIMIT 20`;
     const filesContext = files.length
-      ? `User's uploaded files:\n${files.map(f => `- ${f.name} (${f.type}):\n${f.content?.substring(0, 500)}...`).join('\n\n')}`
+      ? `User's uploaded files (notes/documents):\n${files.map(f => {
+          let fileInfo = `\n📄 FILE: ${f.name} (${f.type})`;
+          if (f.summary) fileInfo += `\n📝 SUMMARY: ${f.summary}`;
+          if (f.important_points) {
+            const points = JSON.parse(f.important_points);
+            fileInfo += `\n✨ KEY POINTS:\n${points.map((p, i) => `  ${i+1}. ${p}`).join('\n')}`;
+          }
+          fileInfo += `\n📖 CONTENT:\n${f.content?.substring(0, 3000)}...`;
+          return fileInfo;
+        }).join('\n\n')}`
       : 'No files uploaded yet.';
 
     // Fetch analytics context
@@ -386,7 +423,17 @@ const processMessage = async (req, res) => {
       : 'No goals set yet.';
 
     const buildSystemPrompt = (provider, modelName) => {
-      const providerLabel = provider === 'gemini' ? `Google Gemini (${modelName})` : provider === 'groq' ? `${modelName} via Groq` : `${modelName} via OpenRouter`;
+      let providerLabel;
+      if (provider === 'gemini') {
+        providerLabel = `Google Gemini (${modelName})`;
+      } else if (provider === 'groq') {
+        providerLabel = `${modelName} via Groq`;
+      } else if (provider === 'mistral') {
+        providerLabel = `Mistral AI (${modelName})`;
+      } else {
+        providerLabel = `${modelName} via OpenRouter`;
+      }
+      
       return `You are NeuroDesk AI — a friendly, smart personal assistant integrated into the NeuroDesk app. You are powered by ${providerLabel}.
 
 The user's name is: ${userName}
@@ -443,8 +490,9 @@ ACADEMIC & KNOWLEDGE — answer accurately and clearly:
 - GENERAL KNOWLEDGE: facts, trivia, definitions, how things work, why things happen
 
 IDENTITY:
-- If asked who you are: "I'm NeuroDesk AI, powered by ${providerLabel}, your personal assistant built right into NeuroDesk!"
-- If asked what model: mention ${modelName} and ${provider === 'gemini' ? 'Google Gemini' : provider === 'groq' ? 'Groq' : 'OpenRouter'}
+- If asked who you are: "I'm NeuroDesk AI, powered by ${provider === 'gemini' ? 'Google Gemini' : provider === 'groq' ? 'Groq' : provider === 'mistral' ? 'Mistral AI' : 'OpenRouter'}, your personal assistant built right into NeuroDesk!"
+- If asked what model or which AI: "I'm ${provider === 'gemini' ? 'Google Gemini' : provider === 'groq' ? 'Groq' : provider === 'mistral' ? 'Mistral AI' : 'OpenRouter'} — your smart assistant in NeuroDesk!"
+- NEVER reveal exact technical model names like llama-3.3-70b-versatile, mistral-large-latest, gemini-2.5-flash, etc. — only say the provider name
 - If asked user's name: always say "${userName}" (from their profile)
 - Never claim to be ChatGPT, Claude, or any other product
 
@@ -474,7 +522,8 @@ ACTIONS — detect and handle automatically (works in English AND Hinglish):
 2. RECALL stored info — "what is my password", "mera password kya tha", "mera number batao" → answer from stored data
    RECALL notes — "what is this", "what was that recipe", "tell me about", "kya tha wo", "batao wo formula", "what's the formula for" → search through user's notes and answer from there
    RECALL tasks — "what are my tasks", "what do I need to do", "mera kya kaam hai", "pending tasks", "what's on my list" → search through user's tasks and answer from there
-   RECALL files — "what's in my file", "tell me about the document", "file mein kya hai", "document ke baare mein batao" → search through user's uploaded files and answer from there
+   RECALL files — "what's in my file", "tell me about the document", "file mein kya hai", "document ke baare mein batao", "explain this topic from my notes", "mere notes mein kya likha hai", "notes se batao" → search through user's uploaded files and answer from there
+   GENERATE QUESTIONS from files — "give me 10 questions from my notes", "mere notes se important questions batao", "test me on this topic", "quiz banao", "practice questions do" → generate relevant questions from file content
 3. CREATE task — "remind me", "todo", "aaj karna hai", "ye kaam karne hain", "mujhe yaad dilao", "schedule kar" → extract all tasks and create
 4. CREATE note — IMPORTANT: Auto-detect when user shares important information that should be saved as a note:
    - User shares ideas, thoughts, learnings, or important information
@@ -575,17 +624,25 @@ EXAMPLES:
     };
 
     let parsed;
+    let aiResult = null;
     try {
-      // Last 6 turns from DB for AI context (token-efficient)
-      const historyMessages = dbHistory
-        .slice(-6)
-        .map(m => ({ role: m.role, content: m.content }));
+      const historyMessages = dbHistory.map(m => ({ role: m.role, content: m.content }));
 
-      const aiResult = await callAI([
-        { role: 'system', content: buildSystemPrompt('gemini', 'gemini-2.0-flash') },
+      aiResult = await callAI([
         ...historyMessages,
         { role: 'user', content: message },
       ]);
+      
+      // Build system prompt with actual provider that was used
+      const systemPrompt = buildSystemPrompt(aiResult.provider, aiResult.model);
+      
+      // Make the real call with correct system prompt
+      aiResult = await callAI([
+        { role: 'system', content: systemPrompt },
+        ...historyMessages,
+        { role: 'user', content: message },
+      ]);
+      
       let raw = aiResult.content.trim();
       raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -703,6 +760,8 @@ EXAMPLES:
       message: parsed.response,
       response: parsed.response,
       record: savedRecord,
+      aiProvider: aiResult?.provider || 'fallback',
+      aiModel: aiResult?.model || 'rule-based',
     });
 
   } catch (err) {
@@ -711,6 +770,8 @@ EXAMPLES:
       message: 'AI processing failed.',
       error: err.message,
       response: 'Sorry, I ran into an error. Please try again.',
+      aiProvider: 'error',
+      aiModel: 'none',
     });
   }
 };
@@ -955,6 +1016,108 @@ const extractPoints = async (req, res) => {
   }
 };
 
+const extractAndSave = async (req, res) => {
+  try {
+    const { fileId } = req.body;
+    const userId = req.user.id;
+
+    if (!fileId) return res.status(400).json({ message: 'File ID is required' });
+
+    // Get file
+    const [file] = await sql`SELECT name, content FROM files WHERE id = ${fileId} AND user_id = ${userId}`;
+    if (!file) return res.status(404).json({ message: 'File not found' });
+    if (!file.content) return res.status(400).json({ message: 'File has no content' });
+
+    // Extract important points
+    const pointsResult = await callAI([
+      { role: 'system', content: 'Extract 5-8 most important points from the document. Return ONLY a JSON array of strings, no markdown.' },
+      { role: 'user', content: `Extract key points from:\n\n${file.content.substring(0, 10000)}` },
+    ]);
+
+    let raw = pointsResult.content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    const match = raw.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error('No JSON array in response');
+    const points = JSON.parse(match[0]);
+
+    // Save points to file
+    await sql`
+      UPDATE files 
+      SET important_points = ${JSON.stringify(points)}
+      WHERE id = ${fileId} AND user_id = ${userId}
+    `;
+
+    // AI decides what to save where
+    const categorizeResult = await callAI([
+      {
+        role: 'system',
+        content: `You are a smart assistant that categorizes extracted information. Analyze the points and decide what should be saved as Notes vs Memory.
+
+Rules:
+- MEMORY: Dates, deadlines, numbers, emails, phone numbers, passwords, URLs, addresses, IDs, codes, account numbers
+- NOTES: Concepts, definitions, formulas, explanations, procedures, important facts, study material
+
+Return ONLY a JSON object with this structure:
+{
+  "notes": ["point1", "point2"],
+  "memories": [{"label": "Label", "value": "Value", "type": "date|number|contact|password|other"}]
+}
+
+No markdown, no explanation.`
+      },
+      {
+        role: 'user',
+        content: `Categorize these points from "${file.name}":\n${points.map((p, i) => `${i + 1}. ${p}`).join('\n')}`
+      }
+    ]);
+
+    let catRaw = categorizeResult.content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    const catMatch = catRaw.match(/\{[\s\S]*\}/);
+    const categorized = catMatch ? JSON.parse(catMatch[0]) : { notes: points, memories: [] };
+
+    let savedNotes = [];
+    let savedMemories = [];
+
+    // Save as Notes
+    if (categorized.notes && categorized.notes.length > 0) {
+      const noteTitle = `Important Points from ${file.name}`;
+      const noteContent = categorized.notes.map((p, i) => `${i + 1}. ${p}`).join('\n\n');
+      
+      const [note] = await sql`
+        INSERT INTO notes (user_id, title, content, color, source)
+        VALUES (${userId}, ${noteTitle}, ${noteContent}, 'blue', 'ai')
+        RETURNING *
+      `;
+      savedNotes.push(note);
+    }
+
+    // Save as Memories
+    if (categorized.memories && categorized.memories.length > 0) {
+      for (const mem of categorized.memories) {
+        try {
+          const [memory] = await sql`
+            INSERT INTO memories (user_id, type, label, value, raw_input)
+            VALUES (${userId}, ${mem.type || 'other'}, ${mem.label}, ${mem.value}, ${`From file: ${file.name}`})
+            RETURNING *
+          `;
+          savedMemories.push(memory);
+        } catch (e) {
+          console.log('Memory save error:', e.message);
+        }
+      }
+    }
+
+    res.json({ 
+      points, 
+      savedNotes: savedNotes.length,
+      savedMemories: savedMemories.length,
+      message: `Extracted ${points.length} points. Saved ${savedNotes.length} notes and ${savedMemories.length} memories.`
+    });
+  } catch (err) {
+    console.error('Extract and save error:', err.message);
+    res.status(500).json({ message: 'Failed to extract and save', error: err.message });
+  }
+};
+
 // Helper: format days left in Hinglish or English
 function formatTimeLeft(daysLeft, lang) {
   const abs = Math.abs(daysLeft);
@@ -1085,4 +1248,44 @@ IMPORTANT: Detect the user's language. If they write in Hindi/Hinglish, reply in
   }
 };
 
-module.exports = { processMessage, getSuggestions, summarizePDF, extractPoints, generateRoadmap, goalChat, getChatHistory, clearChatHistory };
+const generateQuestions = async (req, res) => {
+  try {
+    const { fileId, count = 10 } = req.body;
+    const userId = req.user.id;
+
+    if (!fileId) return res.status(400).json({ message: 'File ID is required' });
+
+    // Get file content
+    const [file] = await sql`SELECT name, content FROM files WHERE id = ${fileId} AND user_id = ${userId}`;
+    if (!file) return res.status(404).json({ message: 'File not found' });
+    if (!file.content) return res.status(400).json({ message: 'File has no content' });
+
+    const aiResult = await callAI([
+      {
+        role: 'system',
+        content: `You are an expert teacher creating practice questions. Generate ${count} important, relevant questions from the given content. Questions should test understanding, not just memorization. Return ONLY a JSON array of question strings, no markdown, no numbering in questions.`
+      },
+      {
+        role: 'user',
+        content: `Generate ${count} important questions from this content:\n\n${file.content.substring(0, 10000)}`
+      }
+    ]);
+
+    let raw = aiResult.content.trim();
+    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    const match = raw.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error('No JSON array in response');
+    const questions = JSON.parse(match[0]);
+
+    if (!Array.isArray(questions) || questions.length === 0) {
+      throw new Error('Empty questions array');
+    }
+
+    res.json({ questions, fileName: file.name });
+  } catch (err) {
+    console.error('Question generation error:', err.message);
+    res.status(500).json({ message: 'Failed to generate questions', error: err.message });
+  }
+};
+
+module.exports = { processMessage, getSuggestions, summarizePDF, extractPoints, extractAndSave, generateRoadmap, goalChat, getChatHistory, clearChatHistory, generateQuestions };

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 import api from '../services/api';
 
 export default function Tasks() {
   const { user } = useAuth();
+  const { notifications, clearNotifications } = useNotifications();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
@@ -17,10 +19,56 @@ export default function Tasks() {
     priority: 'medium',
     due_date: ''
   });
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [notes, setNotes] = useState([]);
+  const [goals, setGoals] = useState([]);
+  const [memories, setMemories] = useState([]);
+  const [notificationOpen, setNotificationOpen] = useState(false);
 
   useEffect(() => {
     fetchTasks();
+    fetchAllData();
   }, []);
+
+  const fetchAllData = async () => {
+    try {
+      const [notesRes, goalsRes, memoriesRes] = await Promise.all([
+        api.get('/notes'),
+        api.get('/goals'),
+        api.get('/memories'),
+      ]);
+      setNotes(notesRes.data);
+      setGoals(goalsRes.data);
+      setMemories(memoriesRes.data);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); return; }
+    const q = searchQuery.toLowerCase();
+    const results = [];
+    tasks.forEach(t => {
+      if (t.title?.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q))
+        results.push({ type: 'Task', icon: '✅', title: t.title, sub: t.priority + ' priority', color: 'text-indigo-600 bg-indigo-50' });
+    });
+    notes.forEach(n => {
+      if (n.title?.toLowerCase().includes(q) || (n.content || '').toLowerCase().includes(q))
+        results.push({ type: 'Note', icon: '📝', title: n.title, sub: n.content?.substring(0, 40) || '', color: 'text-orange-600 bg-orange-50' });
+    });
+    goals.forEach(g => {
+      if (g.title?.toLowerCase().includes(q) || (g.description || '').toLowerCase().includes(q))
+        results.push({ type: 'Goal', icon: '🎯', title: g.title, sub: g.progress + '% complete', color: 'text-teal-600 bg-teal-50' });
+    });
+    memories.forEach(m => {
+      if (m.label?.toLowerCase().includes(q) || m.value?.toLowerCase().includes(q))
+        results.push({ type: 'Memory', icon: '🔐', title: m.label, sub: m.type === 'password' ? '••••••••' : m.value?.substring(0, 40), color: 'text-blue-600 bg-blue-50' });
+    });
+    setSearchResults(results);
+  }, [searchQuery, tasks, notes, goals, memories]);
 
   const fetchTasks = async () => {
     try {
@@ -194,15 +242,55 @@ export default function Tasks() {
           {/* TOP BAR */}
           <header className="flex justify-between items-center mb-10">
             {/* Search */}
-            <div className="relative w-[350px]">
-              <svg className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              <input 
-                type="text" 
-                placeholder="Search tasks..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-full text-sm font-medium focus:outline-none focus:border-indigo-500 shadow-sm" 
-              />
+            <div className="flex items-center gap-2">
+              {searchOpen && (
+                <div className="relative w-[380px] animate-[slideIn_0.3s_ease-out]">
+                  <svg className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  <input
+                    type="text"
+                    placeholder="Search anything..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => setSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-full text-sm font-medium focus:outline-none focus:border-indigo-500 shadow-sm"
+                    autoFocus
+                  />
+
+                  {searchFocused && searchQuery.trim() && (
+                    <div className="absolute top-12 left-0 w-full bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden">
+                      {searchResults.length > 0 ? (
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase px-4 pt-3 pb-1">{searchResults.length} result{searchResults.length > 1 ? 's' : ''} found</p>
+                          {searchResults.slice(0, 8).map((r, i) => (
+                            <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 cursor-pointer">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.color}`}>{r.type}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-slate-800 truncate">{r.title}</p>
+                                {r.sub && <p className="text-[11px] text-slate-400 truncate">{r.sub}</p>}
+                              </div>
+                            </div>
+                          ))}
+                          {searchResults.length > 8 && (
+                            <p className="text-[11px] text-slate-400 text-center py-2">+{searchResults.length - 8} more results</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="px-4 py-6 text-center">
+                          <p className="text-sm font-medium text-slate-500">No results for "{searchQuery}"</p>
+                          <p className="text-xs text-slate-400 mt-1">Try searching tasks, notes, goals or memories</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              <button
+                onClick={() => { setSearchOpen(o => !o); if (searchOpen) { setSearchQuery(''); setSearchResults([]); } }}
+                className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full border shadow-sm transition-colors ${searchOpen ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              </button>
             </div>
             
             {/* Actions & Profile */}
@@ -216,13 +304,59 @@ export default function Tasks() {
               </button>
               
               <div className="flex items-center gap-2 ml-2">
-                <button className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-500 hover:bg-slate-50 shadow-sm">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                </button>
-                <button className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-500 hover:bg-slate-50 shadow-sm relative">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                  <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setNotificationOpen(o => !o)}
+                    className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-500 hover:bg-slate-50 shadow-sm relative"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                    {notifications.length > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>}
+                  </button>
+
+                  {notificationOpen && (
+                    <div className="absolute top-12 right-0 w-[380px] bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-slate-800">Notifications</h3>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-bold text-slate-400">{notifications.length} new</span>
+                          {notifications.length > 0 && (
+                            <button
+                              onClick={() => { clearNotifications(); setNotificationOpen(false); }}
+                              className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors"
+                            >
+                              Clear All
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="max-h-[400px] overflow-y-auto">
+                        {notifications.length > 0 ? (
+                          notifications.map((n, i) => {
+                            const timeAgo = Math.floor((new Date() - n.time) / 60000);
+                            const timeStr = timeAgo < 1 ? 'Just now' : timeAgo < 60 ? `${timeAgo}m ago` : timeAgo < 1440 ? `${Math.floor(timeAgo / 60)}h ago` : `${Math.floor(timeAgo / 1440)}d ago`;
+                            return (
+                              <div key={i} className="px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 cursor-pointer">
+                                <div className="flex items-start gap-3">
+                                  <span className={`text-xs font-bold px-2 py-1 rounded-lg ${n.color} flex-shrink-0`}>{n.type}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-slate-800 truncate">{n.title}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">{n.sub}</p>
+                                    <p className="text-[10px] text-slate-400 mt-1 font-medium">{timeStr}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="px-4 py-8 text-center">
+                            <p className="text-sm font-medium text-slate-500">No notifications</p>
+                            <p className="text-xs text-slate-400 mt-1">You're all caught up!</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} alt="Profile" className="w-10 h-10 rounded-full ml-1" />
               </div>
             </div>
@@ -237,7 +371,7 @@ export default function Tasks() {
             
             {/* Stats Cards */}
             <div className="grid grid-cols-4 gap-6">
-              <div className="bg-white p-5 rounded-[20px] shadow-sm border border-slate-100 flex flex-col justify-between h-28">
+              <div className="bg-white p-5 rounded-[20px] shadow-sm border border-slate-100 flex flex-col justify-between h-28 hover:shadow-xl hover:scale-[1.03] transition-all duration-300 cursor-pointer">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
@@ -249,7 +383,7 @@ export default function Tasks() {
                 </div>
               </div>
               
-              <div className="bg-white p-5 rounded-[20px] shadow-sm border border-slate-100 flex flex-col justify-between h-28">
+              <div className="bg-white p-5 rounded-[20px] shadow-sm border border-slate-100 flex flex-col justify-between h-28 hover:shadow-xl hover:scale-[1.03] transition-all duration-300 cursor-pointer">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center text-green-600">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -261,7 +395,7 @@ export default function Tasks() {
                 </div>
               </div>
               
-              <div className="bg-white p-5 rounded-[20px] shadow-sm border border-slate-100 flex flex-col justify-between h-28">
+              <div className="bg-white p-5 rounded-[20px] shadow-sm border border-slate-100 flex flex-col justify-between h-28 hover:shadow-xl hover:scale-[1.03] transition-all duration-300 cursor-pointer">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -273,7 +407,7 @@ export default function Tasks() {
                 </div>
               </div>
               
-              <div className="bg-white p-5 rounded-[20px] shadow-sm border border-slate-100 flex flex-col justify-between h-28">
+              <div className="bg-white p-5 rounded-[20px] shadow-sm border border-slate-100 flex flex-col justify-between h-28 hover:shadow-xl hover:scale-[1.03] transition-all duration-300 cursor-pointer">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -317,7 +451,7 @@ export default function Tasks() {
           </div>
 
           {/* TASKS LIST */}
-          <div className="bg-white rounded-[24px] shadow-sm border border-slate-100 overflow-hidden">
+          <div className="bg-white rounded-[24px] shadow-sm border border-slate-100 overflow-hidden hover:shadow-lg hover:border-indigo-100 transition-all duration-300">
             {loading ? (
               <div className="divide-y divide-slate-50">
                 {[...Array(5)].map((_, i) => <SkeletonRow key={i} />)}

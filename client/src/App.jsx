@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
+import { ChatProvider } from './context/ChatContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import FloatingChat from './components/FloatingChat';
 import MainLayout from './components/layout/MainLayout';
@@ -49,10 +51,14 @@ function AnimatedRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
-        <AnimatedRoutes />
-      </BrowserRouter>
+      <NotificationProvider>
+        <ChatProvider>
+          <BrowserRouter>
+            <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
+            <AnimatedRoutes />
+          </BrowserRouter>
+        </ChatProvider>
+      </NotificationProvider>
     </AuthProvider>
   );
 }
