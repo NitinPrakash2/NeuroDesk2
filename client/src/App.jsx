@@ -6,7 +6,6 @@ import { NotificationProvider } from './context/NotificationContext';
 import { ChatProvider } from './context/ChatContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import FloatingChat from './components/FloatingChat';
-import MainLayout from './components/layout/MainLayout';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
