@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import api from '../services/api';
+import { useAuth } from './AuthContext';
 
 const NotificationContext = createContext();
 
@@ -11,54 +12,62 @@ export const useNotifications = () => {
 
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
-  const [notificationsCleared, setNotificationsCleared] = useState(false);
+  const { user } = useAuth();
+  const pollingIntervalRef = useRef(null);
+
+  const fetchNotifications = async () => {
+    try {
+      if (user) {
+        const { data } = await api.get('/notifications');
+        setNotifications(data);
+      } else {
+        setNotifications([]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err);
+    }
+  };
 
   useEffect(() => {
-    const fetchNotificationStatus = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (token) {
-          const { data } = await api.get('/user/profile');
-          setNotificationsCleared(data.notifications_cleared || false);
-        }
-      } catch (err) {
-        console.error('Failed to fetch notification status:', err);
+    fetchNotifications();
+    
+    // Polling every 2 seconds for real-time updates
+    pollingIntervalRef.current = setInterval(() => {
+      if (user) {
+        fetchNotifications();
+      }
+    }, 2000);
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
       }
     };
-    fetchNotificationStatus();
-  }, []);
+  }, [user]);
 
-  const addNotification = (notification) => {
-    setNotifications(prev => [{ ...notification, time: new Date() }, ...prev].slice(0, 8));
+  const addNotification = async (notification) => {
+    try {
+      const { data } = await api.post('/notifications', notification);
+      setNotifications(prev => [data, ...prev].slice(0, 8));
+      return data;
+    } catch (err) {
+      console.error('Failed to add notification:', err);
+      throw err;
+    }
   };
 
   const clearNotifications = async () => {
     try {
       await api.post('/user/clear-notifications');
       setNotifications([]);
-      setNotificationsCleared(true);
     } catch (err) {
       console.error('Failed to clear notifications:', err);
+      throw err;
     }
   };
 
   const initializeNotifications = (tasks, notes, goals, memories) => {
-    if (notificationsCleared) return;
-    
-    const notifs = [];
-    tasks.slice(0, 3).forEach(t => {
-      notifs.push({ type: 'Task', icon: '✅', title: t.title, sub: `${t.priority} priority`, time: new Date(t.created_at), color: 'bg-indigo-50 text-indigo-600' });
-    });
-    notes.slice(0, 2).forEach(n => {
-      notifs.push({ type: 'Note', icon: '📝', title: n.title, sub: 'Created', time: new Date(n.created_at), color: 'bg-orange-50 text-orange-600' });
-    });
-    goals.slice(0, 2).forEach(g => {
-      notifs.push({ type: 'Goal', icon: '🎯', title: g.title, sub: `${g.progress}% complete`, time: new Date(g.created_at), color: 'bg-teal-50 text-teal-600' });
-    });
-    memories.slice(0, 2).forEach(m => {
-      notifs.push({ type: 'Memory', icon: '🔐', title: m.label, sub: 'Saved', time: new Date(m.created_at), color: 'bg-blue-50 text-blue-600' });
-    });
-    setNotifications(notifs.sort((a, b) => b.time - a.time).slice(0, 8));
+    // Notifications are now fetched from database, not generated here
   };
 
   return (

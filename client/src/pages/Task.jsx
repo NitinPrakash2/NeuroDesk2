@@ -4,10 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import PageHeader from '../components/PageHeader';
 import api from '../services/api';
+import toast from 'react-hot-toast';
 
 export default function Tasks() {
   const { user } = useAuth();
-  const { notifications, clearNotifications } = useNotifications();
+  const { notifications, addNotification } = useNotifications();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
@@ -110,6 +111,19 @@ export default function Tasks() {
       } else {
         const response = await api.post('/tasks', form);
         setTasks(prev => [response.data, ...prev]);
+        try {
+          await addNotification({
+            type: 'Task',
+            title: response.data.title,
+            sub: `${response.data.priority} priority`,
+            icon: '✅',
+            color: 'bg-indigo-50 text-indigo-600'
+          });
+          toast.success('Task created!');
+        } catch (notifErr) {
+          console.error('Notification error:', notifErr);
+          toast.success('Task created!');
+        }
       }
       setShowModal(false);
     } catch (error) {

@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 import PageHeader from '../components/PageHeader';
+import FilterDropdown from '../components/FilterDropdown';
 import api from '../services/api';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
-  const { notifications, addNotification, clearNotifications, initializeNotifications, resetNotificationFlag } = useNotifications();
+  const { notifications, addNotification, clearNotifications, initializeNotifications } = useNotifications();
   const [tasks, setTasks] = useState([]);
   const [notes, setNotes] = useState([]);
   const [goals, setGoals] = useState([]);
@@ -19,6 +21,7 @@ export default function Dashboard() {
   const [searchResults, setSearchResults] = useState([]);
   const [searchFocused, setSearchFocused] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
+  const [taskFilter, setTaskFilter] = useState('all');
 
 
 
@@ -50,24 +53,27 @@ export default function Dashboard() {
   const [noteForm, setNoteForm] = useState({ title: '', content: '', color: 'orange' });
   const [formLoading, setFormLoading] = useState(false);
 
-  const filteredTasks = tasks.filter(t =>
-    t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (t.description || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const filteredNotes = notes.filter(n =>
-    n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (n.content || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredTasks = tasks.filter(t => {
+    const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (t.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+    if (!matchesSearch) return false;
+    
+    if (taskFilter === 'all') return true;
+    if (taskFilter === 'completed') return t.status === 'completed';
+    if (taskFilter === 'pending') return t.status !== 'completed';
+    if (taskFilter === 'high') return t.priority === 'high';
+    if (taskFilter === 'medium') return t.priority === 'medium';
+    if (taskFilter === 'low') return t.priority === 'low';
+    return true;
+  });
 
   const handleClearNotifications = () => {
     clearNotifications();
     setNotificationOpen(false);
   };
 
-  const handleAddNotification = (notification) => {
-    resetNotificationFlag();
-    addNotification(notification);
+  const handleAddNotification = async (notification) => {
+    await addNotification(notification);
   };
 
   const submitTask = async (e) => {
@@ -98,27 +104,18 @@ export default function Dashboard() {
     finally { setFormLoading(false); }
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [tasksRes, notesRes, goalsRes, memoriesRes] = await Promise.all([
-          api.get('/tasks'),
-          api.get('/notes'),
-          api.get('/goals'),
-          api.get('/memories'),
-        ]);
-        setTasks(tasksRes.data);
-        setNotes(notesRes.data);
-        setGoals(goalsRes.data);
-        setMemories(memoriesRes.data);
-        initializeNotifications(tasksRes.data, notesRes.data, goalsRes.data, memoriesRes.data);
-      } catch (err) {
-        console.error('Error fetching data:', err);
-      } finally {
-        setLoading(false);
-      }
+  const handleDataUpdate = (data) => {
+    setTasks(data.tasks);
+    setNotes(data.notes);
+    setGoals(data.goals);
+    setMemories(data.memories);
+  };
 
-      // Fetch AI suggestions separately so it doesn't break the dashboard
+  useRealtimeData(handleDataUpdate);
+
+  useEffect(() => {
+    setLoading(false);
+    const fetchSuggestions = async () => {
       try {
         const suggestionsRes = await api.get('/ai/suggestions');
         setSuggestions(suggestionsRes.data.suggestions || []);
@@ -126,13 +123,11 @@ export default function Dashboard() {
         console.error('Error fetching AI suggestions:', err);
       }
     };
-    fetchData();
+    fetchSuggestions();
   }, []);
 
   return (
-    // Outer Wrapper: Flexbox to place Sidebar and Main Content side-by-side
-    <div className="flex h-screen w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden">
-      
+    <div className="flex h-screen bg-slate-50">
       {/* ================= SIDEBAR ================= */}
       <aside className="w-[260px] bg-white h-full flex flex-col border-r border-slate-100 flex-shrink-0 z-10">
         {/* Logo */}
@@ -376,14 +371,23 @@ export default function Dashboard() {
             <div className="bg-white p-6 rounded-[20px] shadow-sm border border-slate-100 hover:shadow-xl hover:border-indigo-100 transition-all duration-300">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-base font-bold text-slate-800">Today's Task List</h2>
-                <button className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-[11px] font-bold text-slate-400 rounded-full hover:bg-slate-100">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                  Filter <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                </button>
+                <FilterDropdown
+                  value={taskFilter}
+                  onChange={setTaskFilter}
+                  label="Filter Tasks"
+                  options={[
+                    { value: 'all', label: 'All Tasks' },
+                    { value: 'completed', label: '✓ Completed' },
+                    { value: 'pending', label: '○ Pending' },
+                    { value: 'high', label: '🔴 High Priority' },
+                    { value: 'medium', label: '🟡 Medium Priority' },
+                    { value: 'low', label: '🟢 Low Priority' }
+                  ]}
+                />
               </div>
               
               <div className="space-y-5">
-                {(searchQuery ? filteredTasks : tasks).slice(0, 4).map((task, i) => (
+                {filteredTasks.slice(0, 4).map((task, i) => (
                   <div key={task.id} className="flex items-center justify-between hover:bg-slate-50 p-3 -mx-3 rounded-xl transition-all duration-200 cursor-pointer group">
                     <div className="flex items-center gap-3">
                       <div className={`w-[18px] h-[18px] rounded ${task.status === 'completed' ? 'bg-[#5A67D8] flex items-center justify-center text-white' : 'border-2 border-slate-200'}`}>
@@ -397,7 +401,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
-                {(searchQuery ? filteredTasks : tasks).length === 0 && (
+                {filteredTasks.length === 0 && (
                   <div className="text-center text-slate-400 py-8">
                     <p className="text-sm font-medium">{searchQuery ? 'No tasks found' : 'No tasks yet'}</p>
                     <p className="text-xs mt-1">{searchQuery ? 'Try a different search' : 'Create your first task to get started'}</p>
@@ -408,28 +412,22 @@ export default function Dashboard() {
 
             {/* Quick Notes Grid Item */}
             <div className="bg-white p-6 rounded-[20px] shadow-sm border border-slate-100 hover:shadow-xl hover:border-indigo-100 transition-all duration-300">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-base font-bold text-slate-800">Quick Notes</h2>
-                <button className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 text-[11px] font-bold text-slate-400 rounded-full hover:bg-slate-100">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                  Done <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                </button>
-              </div>
+              <h2 className="text-base font-bold text-slate-800 mb-6">Quick Notes</h2>
 
               <div className="flex gap-4">
-                {(searchQuery ? filteredNotes : notes).slice(0, 2).map((note, i) => (
+                {notes.slice(0, 2).map((note, i) => (
                   <div key={note.id} className={`flex-1 p-5 rounded-tl-xl rounded-tr-3xl rounded-bl-3xl rounded-br-xl ${note.color === 'orange' ? 'bg-[#FDF1EB]' : 'bg-[#E8F8F0]'} hover:shadow-lg hover:scale-[1.03] transition-all duration-300 cursor-pointer`}>
                     <h4 className="font-bold text-slate-800 text-[13px] mb-2">{note.title}</h4>
                     <p className="text-[11px] text-slate-600 font-medium leading-relaxed">{note.content}</p>
                   </div>
                 ))}
-                {(searchQuery ? filteredNotes : notes).length === 0 && (
+                {notes.length === 0 && (
                   <div className="flex-1 bg-[#FDF1EB] p-5 rounded-tl-xl rounded-tr-3xl rounded-bl-3xl rounded-br-xl hover:shadow-lg hover:scale-[1.03] transition-all duration-300 cursor-pointer">
                     <h4 className="font-bold text-slate-800 text-[13px] mb-2">No Notes Yet</h4>
                     <p className="text-[11px] text-slate-600 font-medium leading-relaxed">Create your first note to get started.</p>
                   </div>
                 )}
-                {(searchQuery ? filteredNotes : notes).length === 1 && (
+                {notes.length === 1 && (
                   <div className="flex-1 bg-[#E8F8F0] p-5 rounded-tl-xl rounded-tr-3xl rounded-bl-3xl rounded-br-xl hover:shadow-lg hover:scale-[1.03] transition-all duration-300 cursor-pointer">
                     <h4 className="font-bold text-slate-800 text-[13px] mb-2">Add Another Note</h4>
                     <p className="text-[11px] text-slate-600 font-medium leading-relaxed">Click Add Note to create more.</p>

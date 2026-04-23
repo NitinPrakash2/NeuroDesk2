@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
+import toast from 'react-hot-toast';
 
 export default function PageHeader({ 
   searchQuery, 
@@ -59,6 +60,17 @@ export default function PageHeader({
       }
     } else {
       setSearchOpen(true);
+    }
+  };
+
+  const handleClearNotifications = async () => {
+    try {
+      await clearNotifications();
+      toast.success('Notifications cleared');
+      setNotificationOpen(false);
+    } catch (err) {
+      toast.error('Failed to clear notifications');
+      console.error('Clear notifications error:', err);
     }
   };
 
@@ -225,7 +237,7 @@ export default function PageHeader({
                   </span>
                   {notifications.length > 0 && (
                     <button
-                      onClick={() => { clearNotifications(); setNotificationOpen(false); }}
+                      onClick={handleClearNotifications}
                       className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-2 py-1 rounded-lg transition-all duration-200"
                     >
                       Clear All

@@ -12,6 +12,7 @@ const getProfile = async (req, res) => {
 
 const clearNotifications = async (req, res) => {
   try {
+    await sql`DELETE FROM notifications WHERE user_id = ${req.user.id}`;
     await sql`UPDATE users SET notifications_cleared = TRUE WHERE id = ${req.user.id}`;
     res.json({ message: 'Notifications cleared permanently' });
   } catch (err) {
