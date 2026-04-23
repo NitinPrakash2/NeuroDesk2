@@ -50,16 +50,16 @@ function AnimatedRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <NotificationProvider>
-        <ChatProvider>
-          <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
+        <NotificationProvider>
+          <ChatProvider>
             <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
             <AnimatedRoutes />
-          </BrowserRouter>
-        </ChatProvider>
-      </NotificationProvider>
-    </AuthProvider>
+          </ChatProvider>
+        </NotificationProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 

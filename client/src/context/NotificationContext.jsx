@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import api from '../services/api';
 
 const NotificationContext = createContext();
 
@@ -10,21 +11,39 @@ export const useNotifications = () => {
 
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
-  const [shouldAutoInit, setShouldAutoInit] = useState(true);
+  const [notificationsCleared, setNotificationsCleared] = useState(false);
+
+  useEffect(() => {
+    const fetchNotificationStatus = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          const { data } = await api.get('/user/profile');
+          setNotificationsCleared(data.notifications_cleared || false);
+        }
+      } catch (err) {
+        console.error('Failed to fetch notification status:', err);
+      }
+    };
+    fetchNotificationStatus();
+  }, []);
 
   const addNotification = (notification) => {
     setNotifications(prev => [{ ...notification, time: new Date() }, ...prev].slice(0, 8));
   };
 
-  const clearNotifications = () => {
-    setNotifications([]);
-    setShouldAutoInit(false);
-    localStorage.setItem('notificationsCleared', 'true');
+  const clearNotifications = async () => {
+    try {
+      await api.post('/user/clear-notifications');
+      setNotifications([]);
+      setNotificationsCleared(true);
+    } catch (err) {
+      console.error('Failed to clear notifications:', err);
+    }
   };
 
   const initializeNotifications = (tasks, notes, goals, memories) => {
-    const cleared = localStorage.getItem('notificationsCleared');
-    if (cleared === 'true') return;
+    if (notificationsCleared) return;
     
     const notifs = [];
     tasks.slice(0, 3).forEach(t => {
@@ -42,13 +61,8 @@ export const NotificationProvider = ({ children }) => {
     setNotifications(notifs.sort((a, b) => b.time - a.time).slice(0, 8));
   };
 
-  const resetNotificationFlag = () => {
-    localStorage.removeItem('notificationsCleared');
-    setShouldAutoInit(true);
-  };
-
   return (
-    <NotificationContext.Provider value={{ notifications, addNotification, clearNotifications, initializeNotifications, resetNotificationFlag }}>
+    <NotificationContext.Provider value={{ notifications, addNotification, clearNotifications, initializeNotifications }}>
       {children}
     </NotificationContext.Provider>
   );

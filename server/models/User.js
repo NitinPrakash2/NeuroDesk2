@@ -7,6 +7,7 @@ const createUsersTable = async () => {
       name      TEXT NOT NULL,
       email     TEXT NOT NULL UNIQUE,
       password  TEXT NOT NULL,
+      notifications_cleared BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `;
