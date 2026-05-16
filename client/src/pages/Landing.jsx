@@ -67,6 +67,7 @@ const StepCard = ({ number, title, description }) => (
 );
 
 const Landing = () => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   return (
     <div className="min-h-screen bg-[#f8f9fc] font-sans selection:bg-indigo-100 selection:text-indigo-900 flex flex-col overflow-x-hidden">
       

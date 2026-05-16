@@ -195,6 +195,10 @@ export default function Notes() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
             Analytics
           </a>
+          <Link to="/app/account" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            My Account
+          </Link>
         </nav>
 
         {/* Profile Bottom */}
@@ -310,7 +314,7 @@ export default function Notes() {
         const colorClass = getColorClasses(viewingNote.color);
         return (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setViewingNote(null)}>
-            <div className="bg-white rounded-[24px] w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-[24px] w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
               <div className={`${colorClass.bg} border-b ${colorClass.border} p-6`}>
                 <div className="flex items-center justify-between">
                   <div>
@@ -322,10 +326,10 @@ export default function Notes() {
                   </button>
                 </div>
               </div>
-              <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <div className="p-6 overflow-y-auto" style={{maxHeight: 'calc(80vh - 160px)'}}>
                 <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{viewingNote.content || 'No content'}</p>
               </div>
-              <div className="px-6 pb-6 flex gap-3 border-t border-slate-100 pt-4">
+              <div className="px-6 py-4 flex gap-3 border-t border-slate-100 flex-shrink-0">
                 <button
                   onClick={() => { setViewingNote(null); handleEditNote(viewingNote); }}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
