@@ -291,9 +291,9 @@ export default function PageHeader({
         {/* Profile Avatar */}
         <div className="relative">
           <img 
-            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} 
+            src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} 
             alt="Profile" 
-            className="w-11 h-11 rounded-full border-2 border-slate-200 shadow-sm hover:shadow-lg hover:border-indigo-300 transition-shadow duration-300 cursor-pointer" 
+            className="w-11 h-11 rounded-full border-2 border-slate-200 shadow-sm hover:shadow-lg hover:border-indigo-300 transition-shadow duration-300 cursor-pointer object-cover" 
           />
           <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 border-2 border-white rounded-full shadow-sm" />
         </div>

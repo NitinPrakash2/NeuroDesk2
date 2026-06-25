@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -17,6 +18,9 @@ import Memory from './pages/Memory';
 import Goal from './pages/Goal';
 import Analytics from './pages/Analytics';
 import Account from './pages/Account';
+import ForgotPassword from './pages/ForgotPassword';
+import VerifyOtp from './pages/VerifyOtp';
+import ResetPassword from './pages/ResetPassword';
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -25,6 +29,9 @@ function AnimatedRoutes() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/verify-otp" element={<VerifyOtp />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route
           path="/app/*"
           element={
@@ -52,14 +59,16 @@ function AnimatedRoutes() {
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <NotificationProvider>
-          <ChatProvider>
-            <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
-            <AnimatedRoutes />
-          </ChatProvider>
-        </NotificationProvider>
-      </AuthProvider>
+      <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ''}>
+        <AuthProvider>
+          <NotificationProvider>
+            <ChatProvider>
+              <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
+              <AnimatedRoutes />
+            </ChatProvider>
+          </NotificationProvider>
+        </AuthProvider>
+      </GoogleOAuthProvider>
     </BrowserRouter>
   );
 }

@@ -131,12 +131,12 @@ export default function Dashboard() {
       {/* ================= SIDEBAR ================= */}
       <aside className="w-[260px] bg-white h-full flex flex-col border-r border-slate-100 flex-shrink-0 z-10">
         {/* Logo */}
-        <div className="p-8 flex items-center gap-3">
+        <Link to="/" className="p-8 flex items-center gap-3 hover:opacity-80 transition-opacity">
           <div className="w-8 h-8 rounded-full flex items-center justify-center">
             <img src="/Fevicon.png" alt="NeuroDesk" className="w-8 h-8 rounded-full" />
           </div>
           <span className="font-bold text-[19px] text-slate-800 tracking-tight">NeuroDesk</span>
-        </div>
+        </Link>
 
         {/* Navigation */}
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
@@ -176,7 +176,7 @@ export default function Dashboard() {
 
         {/* Profile Bottom */}
         <div className="p-3 m-4 border border-slate-100 rounded-2xl flex items-center gap-3">
-          <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} alt={user?.name || 'User'} className="w-10 h-10 rounded-full" />
+          <img src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} alt={user?.name || 'User'} className="w-10 h-10 rounded-full object-cover" />
           <div className="flex-1">
             <p className="text-sm font-bold text-slate-800">{user?.name || 'User'}</p>
             <p className="text-xs font-semibold text-slate-400">Free plan</p>

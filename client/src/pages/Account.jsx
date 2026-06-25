@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import ForgotPasswordModal from '../components/ForgotPasswordModal';
+import PasswordInput from '../components/PasswordInput';
 
 export default function Account() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user, logout, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
 
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [passwordMsg, setPasswordMsg] = useState(null);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [createPasswordForm, setCreatePasswordForm] = useState({ newPassword: '', confirmPassword: '' });
+  const [createPasswordMsg, setCreatePasswordMsg] = useState(null);
+  const [createPasswordLoading, setCreatePasswordLoading] = useState(false);
 
   const [contactForm, setContactForm] = useState({ subject: '', message: '' });
   const [contactMsg, setContactMsg] = useState(null);
@@ -21,16 +25,44 @@ export default function Account() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [otpStep, setOtpStep] = useState(0); // 0=not started, 1=sent, 2=verified
+  const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+
+  const handleCreatePassword = async (e) => {
+    e.preventDefault();
+    setCreatePasswordMsg(null);
+    if (!createPasswordForm.newPassword.trim()) {
+      setCreatePasswordMsg({ type: 'error', text: 'Password is required.' });
+      return;
+    }
+    if (createPasswordForm.newPassword !== createPasswordForm.confirmPassword) {
+      setCreatePasswordMsg({ type: 'error', text: 'Passwords do not match.' });
+      return;
+    }
+    if (createPasswordForm.newPassword.length < 6) {
+      setCreatePasswordMsg({ type: 'error', text: 'Password must be at least 6 characters.' });
+      return;
+    }
+    setCreatePasswordLoading(true);
+    try {
+      await api.post('/user/set-password', { password: createPasswordForm.newPassword });
+      setCreatePasswordMsg({ type: 'success', text: 'Password created successfully!' });
+      localStorage.setItem('has_password', 'true');
+      refreshUser();
+      setCreatePasswordForm({ newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      setCreatePasswordMsg({ type: 'error', text: err.response?.data?.message || 'Failed to create password.' });
+    } finally {
+      setCreatePasswordLoading(false);
+    }
+  };
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
     setPasswordMsg(null);
-    
-    // Validation
-    if (!passwordForm.currentPassword.trim()) {
-      setPasswordMsg({ type: 'error', text: 'Current password is required.' });
-      return;
-    }
+
     if (!passwordForm.newPassword.trim()) {
       setPasswordMsg({ type: 'error', text: 'New password is required.' });
       return;
@@ -43,26 +75,42 @@ export default function Account() {
       setPasswordMsg({ type: 'error', text: 'Password must be at least 6 characters long.' });
       return;
     }
-    if (passwordForm.currentPassword === passwordForm.newPassword) {
-      setPasswordMsg({ type: 'error', text: 'New password must be different from current password.' });
-      return;
+
+    if (otpStep !== 2) {
+      if (!passwordForm.currentPassword.trim()) {
+        setPasswordMsg({ type: 'error', text: 'Current password is required.' });
+        return;
+      }
+      if (passwordForm.currentPassword === passwordForm.newPassword) {
+        setPasswordMsg({ type: 'error', text: 'New password must be different from current password.' });
+        return;
+      }
     }
-    
+
     setPasswordLoading(true);
-    
+
     try {
-      await api.put('/auth/change-password', {
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword,
-      });
-      
+      if (otpStep === 2) {
+        await api.post('/auth/change-password-verified', {
+          otp: otpCode,
+          newPassword: passwordForm.newPassword,
+        });
+      } else {
+        await api.post('/auth/change-password', {
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        });
+      }
+
       setPasswordMsg({ type: 'success', text: 'Password updated successfully! Please use your new password next time you log in.' });
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setOtpStep(0);
+      setOtpCode('');
     } catch (err) {
       console.error('Password change error:', err);
-      
+
       if (err.response?.status === 401 || err.response?.status === 400) {
-        setPasswordMsg({ type: 'error', text: 'Current password is incorrect. Please try again.' });
+        setPasswordMsg({ type: 'error', text: err.response?.data?.message || 'Current password is incorrect. Please try again.' });
       } else if (err.response?.data?.message) {
         setPasswordMsg({ type: 'error', text: err.response.data.message });
       } else {
@@ -73,10 +121,39 @@ export default function Account() {
     }
   };
 
+  const handleSendPasswordOtp = async () => {
+    setPasswordMsg(null);
+    setOtpLoading(true);
+    try {
+      await api.post('/auth/send-otp');
+      setPasswordMsg({ type: 'success', text: 'OTP sent to your email!' });
+      setOtpStep(1);
+    } catch (err) {
+      setPasswordMsg({ type: 'error', text: err.response?.data?.message || 'Failed to send OTP' });
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyPasswordOtp = async () => {
+    setPasswordMsg(null);
+    if (otpCode.length !== 6) { setPasswordMsg({ type: 'error', text: 'Enter a valid 6-digit OTP' }); return; }
+    setOtpLoading(true);
+    try {
+      await api.post('/auth/verify-otp', { email: user?.email, otp: otpCode });
+      setPasswordMsg({ type: 'success', text: 'Identity verified! You can now set a new password.' });
+      setOtpStep(2);
+    } catch (err) {
+      setPasswordMsg({ type: 'error', text: err.response?.data?.message || 'Invalid OTP' });
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
   const handleContact = async (e) => {
     e.preventDefault();
     setContactMsg(null);
-    
+
     if (!contactForm.subject.trim()) {
       setContactMsg({ type: 'error', text: 'Subject is required.' });
       return;
@@ -85,16 +162,15 @@ export default function Account() {
       setContactMsg({ type: 'error', text: 'Message is required.' });
       return;
     }
-    
+
     setContactLoading(true);
-    
+
     try {
       await api.post('/auth/contact', contactForm);
       setContactMsg({ type: 'success', text: 'Message sent successfully! Our team will get back to you within 24 hours.' });
       setContactForm({ subject: '', message: '' });
     } catch (err) {
       console.error('Contact error:', err);
-      // Even if API fails, show success to user (fallback)
       setContactMsg({ type: 'success', text: 'Message sent! We\'ll get back to you soon.' });
       setContactForm({ subject: '', message: '' });
     } finally {
@@ -111,18 +187,13 @@ export default function Account() {
       setDeleteError('Password is required to delete your account');
       return;
     }
-    
+
     setDeleteLoading(true);
     setDeleteError('');
-    
+
     try {
-      // Verify password before deletion
       await api.post('/auth/verify-password', { password: deletePassword });
-      
-      // If password is correct, delete account
       await api.delete('/auth/account');
-      
-      // Logout and redirect
       logout();
     } catch (err) {
       setDeleteLoading(false);
@@ -144,48 +215,42 @@ export default function Account() {
     { to: '/app/analytics', label: 'Analytics', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
   ];
 
-  const settingsSections = [
-    { 
-      id: 'profile', 
-      label: 'Profile', 
+  const tabs = [
+    {
+      id: 'profile',
+      label: 'Profile',
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>,
-      desc: 'Manage your personal information' 
+      desc: 'Personal information & account details',
     },
-    { 
-      id: 'password', 
-      label: 'Security', 
+    {
+      id: 'password',
+      label: 'Security',
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>,
-      desc: 'Update your password' 
+      desc: 'Password & authentication settings',
     },
-    { 
-      id: 'contact', 
-      label: 'Support', 
+    {
+      id: 'contact',
+      label: 'Support',
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>,
-      desc: 'Get help from our team' 
+      desc: 'Get help from our support team',
     },
-    { 
-      id: 'danger', 
-      label: 'Danger Zone', 
+    {
+      id: 'danger',
+      label: 'Danger Zone',
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>,
-      desc: 'Delete your account' 
+      desc: 'Irreversible account actions',
     },
   ];
-
-  const Alert = ({ msg }) => msg ? (
-    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold mt-4 animate-in slide-in-from-top-2 duration-300 ${msg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
-      <span>{msg.type === 'success' ? '✅' : '❌'}</span> {msg.text}
-    </div>
-  ) : null;
 
   return (
     <div className="flex h-screen w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden">
 
       {/* SIDEBAR */}
       <aside className="w-[260px] bg-white h-full flex flex-col border-r border-slate-100 flex-shrink-0 z-10">
-        <div className="p-8 flex items-center gap-3">
+        <Link to="/" className="p-8 flex items-center gap-3 hover:opacity-80 transition-opacity">
           <img src="/Fevicon.png" alt="NeuroDesk" className="w-8 h-8" />
           <span className="font-bold text-[19px] text-slate-800 tracking-tight">NeuroDesk</span>
-        </div>
+        </Link>
 
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           {navLinks.map(({ to, label, icon }) => (
@@ -203,286 +268,464 @@ export default function Account() {
         </nav>
 
         <div className="p-3 m-4 border border-slate-100 rounded-2xl flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors">
-          <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} alt={user?.name} className="w-10 h-10 rounded-full" />
+          <img src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} alt={user?.name} className="w-10 h-10 rounded-full object-cover" />
           <div className="flex-1">
             <p className="text-sm font-bold text-slate-800">{user?.name || 'User'}</p>
             <p className="text-xs font-semibold text-slate-400">Free plan</p>
           </div>
-          <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+          <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7 7" /></svg>
         </div>
       </aside>
 
       {/* MAIN */}
-      <main className="flex-1 h-full overflow-y-auto p-8">
-        <div className="max-w-[1100px] mx-auto">
+      <main className="flex-1 h-full overflow-y-auto">
+        <div className="max-w-6xl mx-auto p-8">
 
-          {/* Header */}
+          {/* HEADER */}
           <div className="mb-10">
-            <h1 className="text-[32px] font-bold text-slate-800 mb-2 flex items-center gap-3">
-              Account Settings
-              <span className="text-3xl">⚙️</span>
-            </h1>
-            <p className="text-slate-500 text-base font-medium">Manage your profile, security, and preferences</p>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-200">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              </div>
+              <div>
+                <h1 className="text-[28px] font-bold text-slate-800 tracking-tight">Account Settings</h1>
+                <p className="text-slate-500 text-sm font-medium mt-0.5">Manage your profile, security preferences, and account details</p>
+              </div>
+            </div>
           </div>
 
-          {/* 2-Column Layout */}
-          <div className="grid grid-cols-[280px_1fr] gap-8">
-            
-            {/* LEFT: Settings Navigation */}
-            <div className="space-y-2">
-              {settingsSections.map(section => (
-                <button
-                  key={section.id}
-                  onClick={() => { setActiveTab(section.id); setPasswordMsg(null); setContactMsg(null); }}
-                  className={`w-full text-left px-5 py-4 rounded-[16px] transition-all duration-300 group ${
-                    activeTab === section.id
-                      ? 'bg-white shadow-lg shadow-indigo-100/50 border-2 border-indigo-100 scale-[1.02]'
-                      : 'bg-white/60 border-2 border-transparent hover:bg-white hover:shadow-md hover:scale-[1.01]'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 mb-1">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 ${
-                      activeTab === section.id 
-                        ? 'bg-indigo-100 text-indigo-600' 
-                        : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-500'
-                    }`}>
-                      {section.icon}
+          {/* TWO-COLUMN LAYOUT */}
+          <div className="flex gap-8">
+
+            {/* LEFT: TABS NAVIGATION */}
+            <div className="w-64 flex-shrink-0 space-y-1.5">
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => { setActiveTab(tab.id); setPasswordMsg(null); setContactMsg(null); }}
+                    className={`w-full text-left p-4 rounded-2xl transition-all duration-200 group ${
+                      isActive
+                        ? 'bg-white shadow-lg shadow-indigo-100/50 border border-indigo-100'
+                        : 'bg-transparent border border-transparent hover:bg-white hover:shadow-md hover:border-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                        isActive
+                          ? 'bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-md'
+                          : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-500'
+                      }`}>
+                        {tab.icon}
+                      </div>
+                      <div>
+                        <p className={`text-sm font-bold ${
+                          isActive ? 'text-indigo-600' : 'text-slate-700 group-hover:text-slate-900'
+                        }`}>{tab.label}</p>
+                        <p className="text-[11px] text-slate-400 font-medium mt-0.5">{tab.desc}</p>
+                      </div>
                     </div>
-                    <span className={`text-sm font-bold transition-colors ${
-                      activeTab === section.id ? 'text-[#5A67D8]' : 'text-slate-700 group-hover:text-slate-900'
-                    }`}>
-                      {section.label}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 ml-11 leading-relaxed">{section.desc}</p>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* RIGHT: Content Area */}
-            <div className="min-h-[600px]">
-              
-              {/* PROFILE TAB */}
-              {activeTab === 'profile' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                  {/* Profile Card */}
-                  <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 overflow-hidden group">
-                    <div className="bg-gradient-to-br from-[#5A67D8] via-indigo-500 to-purple-500 p-8 relative overflow-hidden">
-                      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLW9wYWNpdHk9IjAuMSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30"></div>
-                      <div className="relative flex items-center gap-6">
-                        <div className="relative group/avatar">
-                          <img
-                            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random&size=128&bold=true`}
-                            alt={user?.name}
-                            className="w-24 h-24 rounded-[20px] border-4 border-white/40 shadow-2xl transition-transform duration-300 group-hover/avatar:scale-110 group-hover/avatar:rotate-3"
-                          />
-                          <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-400 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
-                            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                          </div>
-                        </div>
-                        <div className="flex-1">
-                          <h2 className="text-3xl font-bold text-white mb-1 tracking-tight">{user?.name || 'User'}</h2>
-                          <p className="text-indigo-100 text-base font-medium mb-3">{user?.email || 'No email provided'}</p>
-                          <div className="flex items-center gap-3">
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/20 backdrop-blur-sm text-white text-xs font-bold rounded-full border border-white/30">
-                              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" /></svg>
-                              Free Plan
-                            </span>
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/20 backdrop-blur-sm text-white text-xs font-bold rounded-full border border-white/30">
-                              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
-                              Member since {new Date().getFullYear()}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="p-8">
-                      <h3 className="text-base font-bold text-slate-800 mb-5 flex items-center gap-2">
-                        <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        Account Information
-                      </h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        {[
-                          { label: 'Full Name', value: user?.name || '—', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> },
-                          { label: 'Email Address', value: user?.email || '—', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg> },
-                          { label: 'Account Type', value: 'Free', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg> },
-                          { label: 'Status', value: 'Active', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, highlight: true },
-                        ].map((item, i) => (
-                          <div key={i} className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-[16px] p-5 border border-slate-200/50 hover:shadow-lg hover:scale-[1.02] hover:border-indigo-200 transition-all duration-300 group/card">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-300 group-hover/card:scale-110 ${
-                                item.highlight ? 'bg-green-100 text-green-600' : 'bg-indigo-100 text-indigo-600'
-                              }`}>
-                                {item.icon}
-                              </div>
-                              <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">{item.label}</p>
-                            </div>
-                            <p className={`text-base font-bold ${item.highlight ? 'text-green-600' : 'text-slate-800'} truncate`}>{item.value}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+            {/* RIGHT: CONTENT */}
+            <div className="flex-1 min-h-[600px]">
 
-                    <div className="px-8 pb-8 flex gap-3">
-                      <button
-                        onClick={logout}
-                        className="flex items-center gap-2 px-6 py-3 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-[14px] text-sm font-bold text-slate-700 hover:text-slate-900 transition-all duration-300 hover:scale-[1.02] hover:shadow-md group"
-                      >
-                        <svg className="w-4 h-4 transition-transform duration-300 group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                        Sign Out
-                      </button>
-                      <button className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 rounded-[14px] text-sm font-bold text-white transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-indigo-200 group">
-                        <svg className="w-4 h-4 transition-transform duration-300 group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+              {/* ===== PROFILE TAB ===== */}
+              {activeTab === 'profile' && (
+                <div className="space-y-5 animate-fadeIn">
+
+                  {/* PROFILE CARD */}
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+                    {/* AVATAR + NAME */}
+                    <div className="p-6 flex items-center gap-5">
+                      <div className="relative">
+                        <img
+                          src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random&size=128&bold=true`}
+                          alt={user?.name}
+                          className="w-20 h-20 rounded-xl border-2 border-slate-100 object-cover"
+                        />
+                        <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-emerald-400 rounded-full border-2 border-white"></div>
+                      </div>
+                      <div className="flex-1">
+                        <h2 className="text-xl font-bold text-slate-900">{user?.name || 'User'}</h2>
+                        <p className="text-sm text-slate-500 mt-0.5">{user?.email || 'No email provided'}</p>
+                        <div className="flex items-center gap-2 mt-2.5">
+                          <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">Free Plan</span>
+                          <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">Joined {new Date().getFullYear()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ACCOUNT INFO */}
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-4">Account Details</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {[
+                        { label: 'Full Name', value: user?.name || '\u2014' },
+                        { label: 'Email Address', value: user?.email || '\u2014' },
+                        { label: 'Account Type', value: 'Free' },
+                        { label: 'Status', value: 'Active', highlight: true },
+                      ].map((item, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+                          <div className={`w-2 h-2 rounded-full ${item.highlight ? 'bg-emerald-400' : 'bg-slate-300'}`}></div>
+                          <div>
+                            <p className="text-xs text-slate-400 font-medium">{item.label}</p>
+                            <p className={`text-sm font-semibold ${item.highlight ? 'text-emerald-600' : 'text-slate-800'}`}>{item.value}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* PLAN */}
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-700">Free Plan</h3>
+                        <p className="text-sm text-slate-500 mt-0.5">Upgrade to unlock premium features</p>
+                      </div>
+                      <button className="text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-5 py-2 rounded-lg transition-colors">
                         Upgrade to Pro
                       </button>
                     </div>
+                    <div className="grid grid-cols-3 gap-3 mt-5 pt-5 border-t border-slate-100">
+                      {[
+                        { label: 'Storage', value: '100 MB' },
+                        { label: 'AI Actions', value: '50 / day' },
+                        { label: 'Team', value: '1 member' },
+                      ].map((f, i) => (
+                        <div key={i} className="text-center">
+                          <p className="text-xs text-slate-400 font-medium">{f.label}</p>
+                          <p className="text-sm font-semibold text-slate-800 mt-0.5">{f.value}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+
+                  {/* SIGN OUT */}
+                  <button
+                    onClick={logout}
+                    className="text-sm font-medium text-slate-500 hover:text-red-600 px-4 py-2 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    Sign Out
+                  </button>
                 </div>
               )}
 
-              {/* RESET PASSWORD TAB */}
+              {/* ===== SECURITY TAB ===== */}
               {activeTab === 'password' && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 p-8">
+                <div className="animate-fadeIn">
+                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+
+                    {/* HEADER */}
                     <div className="flex items-start gap-4 mb-8 pb-6 border-b border-slate-100">
-                      <div className="w-14 h-14 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-[16px] flex items-center justify-center border border-indigo-100 shadow-sm">
-                        <svg className="w-7 h-7 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                       </div>
-                      <div className="flex-1">
-                        <h2 className="text-xl font-bold text-slate-800 mb-1">Security Settings</h2>
-                        <p className="text-sm text-slate-500 leading-relaxed">Keep your account secure by updating your password regularly. Use a strong password with at least 6 characters.</p>
+                      <div>
+                        <h2 className="text-xl font-bold text-slate-800">Security Settings</h2>
+                        <p className="text-sm text-slate-500 mt-1">
+                          {user?.has_password ? 'Keep your account secure. Use a strong password with at least 6 characters.' : 'Set a password for your account to enable password-based login.'}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-2">
+                          {user?.email}{' '}
+                          <button type="button" onClick={() => setShowForgotPassword(true)} className="text-indigo-500 hover:text-indigo-600 font-medium ml-1">
+                            Forgot password?
+                          </button>
+                        </p>
                       </div>
                     </div>
-                    
-                    <form onSubmit={handleResetPassword} className="space-y-6 max-w-lg">
-                      <div className="space-y-2">
-                        <label className="block text-sm font-bold text-slate-700">Current Password</label>
-                        <div className="relative group">
-                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <svg className="w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+
+                    {/* CREATE PASSWORD (for Google users without password) */}
+                    {!user?.has_password && (
+                      <form onSubmit={handleCreatePassword} className="max-w-lg space-y-5">
+                        {['newPassword', 'confirmPassword'].map((field, idx) => {
+                          const labels = { newPassword: 'New Password', confirmPassword: 'Confirm Password' };
+                          const placeholders = { newPassword: 'Enter your new password', confirmPassword: 'Confirm your password' };
+                          return (
+                            <div key={field} className="space-y-1.5">
+                              <label className="block text-sm font-bold text-slate-700">{labels[field]}</label>
+                              <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                  <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    {idx === 0 && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />}
+                                    {idx === 1 && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />}
+                                  </svg>
+                                </div>
+                                <PasswordInput
+                                  value={createPasswordForm[field]}
+                                  onChange={e => setCreatePasswordForm(p => ({ ...p, [field]: e.target.value }))}
+                                  placeholder={placeholders[field]}
+                                  required
+                                  className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 text-sm font-medium transition-all hover:border-slate-300 bg-slate-50"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {createPasswordMsg && (
+                          <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold ${
+                            createPasswordMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'
+                          }`}>
+                            <span>{createPasswordMsg.type === 'success' ? '\u2705' : '\u274c'}</span> {createPasswordMsg.text}
                           </div>
-                          <input
-                            type="password"
-                            value={passwordForm.currentPassword}
-                            onChange={e => setPasswordForm(p => ({ ...p, currentPassword: e.target.value }))}
-                            placeholder="Enter your current password"
-                            required
-                            className="w-full pl-12 pr-4 py-3.5 border-2 border-slate-200 rounded-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm font-medium transition-all hover:border-slate-300"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="block text-sm font-bold text-slate-700">New Password</label>
-                        <div className="relative group">
-                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <svg className="w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
-                          </div>
-                          <input
-                            type="password"
-                            value={passwordForm.newPassword}
-                            onChange={e => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
-                            placeholder="Enter a strong new password"
-                            required
-                            className="w-full pl-12 pr-4 py-3.5 border-2 border-slate-200 rounded-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm font-medium transition-all hover:border-slate-300"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="block text-sm font-bold text-slate-700">Confirm New Password</label>
-                        <div className="relative group">
-                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <svg className="w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          </div>
-                          <input
-                            type="password"
-                            value={passwordForm.confirmPassword}
-                            onChange={e => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
-                            placeholder="Confirm your new password"
-                            required
-                            className="w-full pl-12 pr-4 py-3.5 border-2 border-slate-200 rounded-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm font-medium transition-all hover:border-slate-300"
-                          />
-                        </div>
-                      </div>
-
-                      <Alert msg={passwordMsg} />
-
-                      <button
-                        type="submit"
-                        disabled={passwordLoading}
-                        className="w-full px-6 py-4 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-[14px] text-sm font-bold transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-indigo-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
-                      >
-                        {passwordLoading ? (
-                          <>
-                            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                            Updating Password...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-5 h-5 transition-transform duration-300 group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            Update Password
-                          </>
                         )}
-                      </button>
-                    </form>
+
+                        <button
+                          type="submit"
+                          disabled={createPasswordLoading}
+                          className="w-full px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-xl text-sm font-bold transition-all duration-200 hover:shadow-lg hover:shadow-indigo-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {createPasswordLoading ? (
+                            <>
+                              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                              Creating Password...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                              Create Password
+                            </>
+                          )}
+                        </button>
+                      </form>
+                    )}
+
+                    {/* CHANGE PASSWORD (for users with password) */}
+                    {user?.has_password && (
+                      <>
+                        <form onSubmit={handleResetPassword} className="max-w-lg space-y-5">
+
+                          {/* Current Password (disabled when OTP-verified) */}
+                          <div className="space-y-1.5">
+                            <label className="block text-sm font-bold text-slate-700">
+                              {otpStep === 2 ? 'Current Password' : 'Current Password'}
+                            </label>
+                            <div className="relative">
+                              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                {otpStep === 2 ? (
+                                  <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                ) : (
+                                  <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                )}
+                              </div>
+                              <PasswordInput
+                                value={otpStep === 2 ? '' : passwordForm.currentPassword}
+                                disabled={otpStep === 2}
+                                placeholder={otpStep === 2 ? 'Verified via OTP' : 'Enter current password'}
+                                className={`w-full pl-12 pr-4 py-3 border rounded-xl text-sm font-medium transition-all bg-slate-50 ${
+                                  otpStep === 2
+                                    ? 'border-emerald-200 bg-emerald-50/50 text-emerald-700 cursor-not-allowed'
+                                    : 'border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 hover:border-slate-300'
+                                }`}
+                              />
+                              {otpStep === 2 && (
+                                <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
+                                  <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">
+                                    Verified &#10003;
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Verify via OTP link / OTP input area */}
+                          {otpStep === 0 && (
+                            <div className="flex items-center justify-end">
+                              <button type="button" onClick={handleSendPasswordOtp} disabled={otpLoading}
+                                className="text-xs font-medium text-indigo-500 hover:text-indigo-600 transition-colors"
+                              >
+                                {otpLoading ? 'Sending OTP...' : 'Verify via OTP instead'}
+                              </button>
+                            </div>
+                          )}
+
+                          {otpStep >= 1 && (
+                            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs font-semibold text-indigo-700">
+                                  {otpStep === 1 ? 'Enter the OTP sent to your email' : 'Identity verified'}
+                                </p>
+                                {otpStep === 2 && (
+                                  <span className="text-[11px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">Verified</span>
+                                )}
+                              </div>
+                              {otpStep === 1 && (
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text" maxLength={6}
+                                    value={otpCode}
+                                    onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                    placeholder="000000"
+                                    className="flex-1 px-3 py-2 border border-indigo-200 rounded-lg text-center text-lg font-bold tracking-[6px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 text-sm bg-white"
+                                    autoFocus
+                                  />
+                                  <button type="button" onClick={handleVerifyPasswordOtp} disabled={otpLoading || otpCode.length !== 6}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-60"
+                                  >
+                                    {otpLoading ? '...' : 'Verify'}
+                                  </button>
+                                  <button type="button" onClick={() => { setOtpStep(0); setOtpCode(''); setPasswordMsg(null); }}
+                                    className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-500 hover:bg-white transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* New Password */}
+                          <div className="space-y-1.5">
+                            <label className="block text-sm font-bold text-slate-700">New Password</label>
+                            <div className="relative">
+                              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+                              </div>
+                              <PasswordInput
+                                value={passwordForm.newPassword}
+                                onChange={e => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
+                                placeholder="Enter new password"
+                                required
+                                className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 text-sm font-medium transition-all hover:border-slate-300 bg-slate-50"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Confirm Password */}
+                          <div className="space-y-1.5">
+                            <label className="block text-sm font-bold text-slate-700">Confirm New Password</label>
+                            <div className="relative">
+                              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              </div>
+                              <PasswordInput
+                                value={passwordForm.confirmPassword}
+                                onChange={e => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                                placeholder="Confirm new password"
+                                required
+                                className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 text-sm font-medium transition-all hover:border-slate-300 bg-slate-50"
+                              />
+                            </div>
+                          </div>
+
+                          {passwordMsg && (
+                            <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold ${
+                              passwordMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'
+                            }`}>
+                              <span>{passwordMsg.type === 'success' ? '\u2705' : '\u274c'}</span> {passwordMsg.text}
+                            </div>
+                          )}
+
+                          <button
+                            type="submit"
+                            disabled={passwordLoading}
+                            className="w-full px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-xl text-sm font-bold transition-all duration-200 hover:shadow-lg hover:shadow-indigo-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          >
+                            {passwordLoading ? (
+                              <>
+                                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                Updating Password...
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                Update Password
+                              </>
+                            )}
+                          </button>
+                        </form>
+
+                        <div className="relative my-8 max-w-lg">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-slate-200"></div>
+                          </div>
+                          <div className="relative flex justify-center">
+                            <span className="bg-white px-4 text-xs font-medium text-slate-400">OR</span>
+                          </div>
+                        </div>
+
+                        <div className="max-w-lg">
+                          <h3 className="text-sm font-bold text-slate-700 mb-2">Forgot your password?</h3>
+                          <p className="text-sm text-slate-500 mb-4">Reset your password using OTP sent to your registered email.</p>
+                          <button
+                            onClick={() => setShowForgotPassword(true)}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 rounded-xl text-sm font-bold text-slate-600 transition-all duration-200 hover:shadow-sm"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+                            Reset via Email OTP
+                          </button>
+                        </div>
+                      </>
+                    )}
+
                   </div>
                 </div>
               )}
 
-              {/* CONTACT TAB */}
+              {/* ===== SUPPORT TAB ===== */}
               {activeTab === 'contact' && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-6">
-                  {/* Support Cards */}
+                <div className="space-y-6 animate-fadeIn">
+
+                  {/* SUPPORT STATS */}
                   <div className="grid grid-cols-3 gap-4">
                     {[
-                      { 
+                      {
                         icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>,
-                        label: 'Email Support', 
-                        value: 'support@neurodesk.app', 
-                        color: 'from-blue-50 to-cyan-50 border-blue-100',
-                        iconColor: 'bg-blue-100 text-blue-600'
+                        label: 'Email Support',
+                        value: 'support@neurodesk.app',
+                        gradient: 'from-blue-50 to-indigo-50',
+                        iconBg: 'bg-blue-100 text-blue-600',
+                        border: 'border-blue-100',
                       },
-                      { 
+                      {
                         icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-                        label: 'Response Time', 
-                        value: 'Within 24 hours', 
-                        color: 'from-orange-50 to-amber-50 border-orange-100',
-                        iconColor: 'bg-orange-100 text-orange-600'
+                        label: 'Response Time',
+                        value: 'Within 24 hours',
+                        gradient: 'from-orange-50 to-amber-50',
+                        iconBg: 'bg-orange-100 text-orange-600',
+                        border: 'border-orange-100',
                       },
-                      { 
+                      {
                         icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>,
-                        label: 'Availability', 
-                        value: 'Mon–Fri, 9am–6pm', 
-                        color: 'from-green-50 to-emerald-50 border-green-100',
-                        iconColor: 'bg-green-100 text-green-600'
+                        label: 'Availability',
+                        value: 'Mon\u2013Fri, 9am\u20136pm',
+                        gradient: 'from-emerald-50 to-green-50',
+                        iconBg: 'bg-emerald-100 text-emerald-600',
+                        border: 'border-emerald-100',
                       },
                     ].map((item, i) => (
-                      <div key={i} className={`bg-gradient-to-br ${item.color} rounded-[20px] p-5 border shadow-sm hover:shadow-xl hover:scale-[1.03] transition-all duration-300 text-center group cursor-pointer`}>
-                        <div className={`w-12 h-12 ${item.iconColor} rounded-[14px] flex items-center justify-center mx-auto mb-3 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 shadow-sm`}>
+                      <div key={i} className={`bg-gradient-to-br ${item.gradient} rounded-xl p-5 border ${item.border} shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-center group cursor-pointer`}>
+                        <div className={`w-11 h-11 ${item.iconBg} rounded-xl flex items-center justify-center mx-auto mb-3 transition-transform duration-200 group-hover:scale-110 shadow-sm`}>
                           {item.icon}
                         </div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">{item.label}</p>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">{item.label}</p>
                         <p className="text-sm font-bold text-slate-700">{item.value}</p>
                       </div>
                     ))}
                   </div>
 
-                  {/* Contact Form */}
-                  <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 p-8">
+                  {/* CONTACT FORM */}
+                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
                     <div className="flex items-start gap-4 mb-8 pb-6 border-b border-slate-100">
-                      <div className="w-14 h-14 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-[16px] flex items-center justify-center border border-blue-100 shadow-sm">
-                        <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
                       </div>
-                      <div className="flex-1">
-                        <h2 className="text-xl font-bold text-slate-800 mb-1">Get in Touch</h2>
-                        <p className="text-sm text-slate-500 leading-relaxed">Have a question or feedback? Our support team is here to help you succeed.</p>
+                      <div>
+                        <h2 className="text-xl font-bold text-slate-800">Get in Touch</h2>
+                        <p className="text-sm text-slate-500 mt-1">Have a question or feedback? Our support team is here to help.</p>
                       </div>
                     </div>
 
-                    <form onSubmit={handleContact} className="space-y-6 max-w-lg">
-                      <div className="space-y-2">
+                    <form onSubmit={handleContact} className="max-w-lg space-y-5">
+                      <div className="space-y-1.5">
                         <label className="block text-sm font-bold text-slate-700">Subject</label>
                         <input
                           type="text"
@@ -490,28 +733,34 @@ export default function Account() {
                           onChange={e => setContactForm(p => ({ ...p, subject: e.target.value }))}
                           placeholder="What can we help you with?"
                           required
-                          className="w-full px-4 py-3.5 border-2 border-slate-200 rounded-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm font-medium transition-all hover:border-slate-300"
+                          className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 text-sm font-medium transition-all hover:border-slate-300 bg-slate-50"
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <label className="block text-sm font-bold text-slate-700">Message</label>
                         <textarea
                           value={contactForm.message}
                           onChange={e => setContactForm(p => ({ ...p, message: e.target.value }))}
                           placeholder="Describe your issue or feedback in detail..."
-                          rows={6}
+                          rows={5}
                           required
-                          className="w-full px-4 py-3.5 border-2 border-slate-200 rounded-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm font-medium resize-none transition-all hover:border-slate-300"
+                          className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 text-sm font-medium resize-none transition-all hover:border-slate-300 bg-slate-50"
                         />
                       </div>
 
-                      <Alert msg={contactMsg} />
+                      {contactMsg && (
+                        <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold ${
+                          contactMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'
+                        }`}>
+                          <span>{contactMsg.type === 'success' ? '\u2705' : '\u274c'}</span> {contactMsg.text}
+                        </div>
+                      )}
 
                       <button
                         type="submit"
                         disabled={contactLoading}
-                        className="w-full px-6 py-4 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-[14px] text-sm font-bold transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-blue-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
+                        className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-xl text-sm font-bold transition-all duration-200 hover:shadow-lg hover:shadow-blue-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         {contactLoading ? (
                           <>
@@ -520,7 +769,7 @@ export default function Account() {
                           </>
                         ) : (
                           <>
-                            <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                             Send Message
                           </>
                         )}
@@ -530,30 +779,35 @@ export default function Account() {
                 </div>
               )}
 
-              {/* DANGER ZONE TAB */}
+              {/* ===== DANGER ZONE TAB ===== */}
               {activeTab === 'danger' && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="bg-white rounded-[24px] border-2 border-red-100 shadow-sm hover:shadow-xl hover:border-red-200 transition-all duration-300 p-8">
+                <div className="animate-fadeIn">
+                  <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-8">
                     <div className="flex items-start gap-4 mb-8 pb-6 border-b border-red-100">
-                      <div className="w-14 h-14 bg-gradient-to-br from-red-50 to-orange-50 rounded-[16px] flex items-center justify-center border border-red-200 shadow-sm">
-                        <svg className="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-50 to-orange-50 border border-red-200 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                       </div>
-                      <div className="flex-1">
-                        <h2 className="text-xl font-bold text-slate-800 mb-1">Danger Zone</h2>
-                        <p className="text-sm text-slate-500 leading-relaxed">These actions are permanent and cannot be undone. Please proceed with extreme caution.</p>
+                      <div>
+                        <h2 className="text-xl font-bold text-slate-800">Danger Zone</h2>
+                        <p className="text-sm text-slate-500 mt-1">These actions are permanent and cannot be undone. Proceed with caution.</p>
                       </div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-red-50 to-orange-50 border-2 border-red-200 rounded-[20px] p-6 hover:shadow-lg transition-all duration-300">
-                      <div className="flex items-start gap-4 mb-4">
-                        <div className="w-12 h-12 bg-red-100 rounded-[14px] flex items-center justify-center flex-shrink-0">
-                          <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-xl border border-red-200 p-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-11 h-11 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                         </div>
                         <div className="flex-1">
                           <h3 className="text-base font-bold text-red-700 mb-2">Delete Account Permanently</h3>
-                          <p className="text-sm text-red-600 leading-relaxed mb-4">This will permanently delete your account and all associated data including notes, tasks, files, memories, and goals. This action cannot be undone and your data cannot be recovered.</p>
+                          <p className="text-sm text-red-600 leading-relaxed mb-4">This will permanently delete your account and all associated data including notes, tasks, files, memories, and goals. This action is irreversible.</p>
                           <ul className="space-y-2 mb-4">
-                            {['All your notes and tasks will be deleted', 'Your files and memories will be removed', 'Your goals and progress will be lost', 'This action is irreversible'].map((item, i) => (
+                            {[
+                              'All your notes and tasks will be deleted',
+                              'Your files and memories will be removed',
+                              'Your goals and progress will be lost',
+                              'This action is irreversible',
+                            ].map((item, i) => (
                               <li key={i} className="flex items-center gap-2 text-xs text-red-600 font-medium">
                                 <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
                                 {item}
@@ -562,9 +816,9 @@ export default function Account() {
                           </ul>
                           <button
                             onClick={() => setShowDeleteModal(true)}
-                            className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-[14px] text-sm font-bold transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-red-200 flex items-center gap-2 group"
+                            className="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-bold transition-all duration-200 hover:shadow-lg hover:shadow-red-200 inline-flex items-center gap-2"
                           >
-                            <svg className="w-5 h-5 transition-transform duration-300 group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                             Delete My Account
                           </button>
                         </div>
@@ -579,17 +833,28 @@ export default function Account() {
         </div>
       </main>
 
+      {/* FORGOT PASSWORD MODAL */}
+      {showForgotPassword && <ForgotPasswordModal onClose={() => setShowForgotPassword(false)} initialEmail={user?.email || ''} />}
+
       {/* DELETE CONFIRM MODAL */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-300" onClick={() => { setShowDeleteModal(false); setDeleteError(''); }}>
-          <div className="bg-white rounded-[28px] p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 duration-300" onClick={e => e.stopPropagation()}>
-            <div className="w-16 h-16 bg-gradient-to-br from-red-100 to-orange-100 rounded-[20px] flex items-center justify-center mx-auto mb-5 border-2 border-red-200 shadow-lg animate-in zoom-in duration-500">
-              <svg className="w-9 h-9 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => { setShowDeleteModal(false); setDeleteError(''); }}
+        >
+          <div
+            className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-14 h-14 bg-gradient-to-br from-red-100 to-orange-100 rounded-xl flex items-center justify-center mx-auto mb-5 border-2 border-red-200">
+              <svg className="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 text-center mb-3">Delete Account?</h2>
-            <p className="text-sm text-slate-500 text-center mb-6 leading-relaxed">This action is <span className="font-bold text-red-600">permanent and irreversible</span>. All your data will be deleted forever and cannot be recovered.</p>
-            
-            <div className="bg-red-50 border-2 border-red-100 rounded-[16px] p-4 mb-6">
+            <h2 className="text-xl font-bold text-slate-800 text-center mb-2">Delete Account?</h2>
+            <p className="text-sm text-slate-500 text-center mb-6 leading-relaxed">
+              This action is <span className="font-bold text-red-600">permanent and irreversible</span>. All your data will be deleted forever.
+            </p>
+
+            <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6">
               <p className="text-xs font-bold text-red-600 mb-3 flex items-center gap-2">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                 What will be deleted:
@@ -606,40 +871,39 @@ export default function Account() {
 
             <div className="space-y-4 mb-6">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-sm font-bold text-slate-700 mb-1.5">
                   Enter your password to confirm
                 </label>
-                <div className="relative group">
+                <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <svg className="w-5 h-5 text-slate-400 group-focus-within:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                   </div>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={deletePassword}
                     onChange={e => { setDeletePassword(e.target.value); setDeleteError(''); }}
                     placeholder="Enter your password"
-                    className="w-full pl-12 pr-4 py-3.5 border-2 border-red-200 rounded-[14px] focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent text-sm font-medium transition-all"
+                    className="w-full pl-12 pr-4 py-3 border border-red-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400/20 focus:border-red-400 text-sm font-medium transition-all bg-slate-50"
                     autoFocus
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
-                  Type <span className="font-mono bg-red-100 text-red-600 px-2 py-1 rounded-lg border border-red-200">DELETE</span> to confirm
+                <label className="block text-sm font-bold text-slate-700 mb-1.5">
+                  Type <span className="font-mono bg-red-100 text-red-600 px-1.5 py-0.5 rounded border border-red-200 text-xs">DELETE</span> to confirm
                 </label>
                 <input
                   type="text"
                   value={deleteConfirm}
                   onChange={e => { setDeleteConfirm(e.target.value); setDeleteError(''); }}
                   placeholder="Type DELETE in capital letters"
-                  className="w-full px-4 py-3.5 border-2 border-red-200 rounded-[14px] focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent text-sm font-medium transition-all"
+                  className="w-full px-4 py-3 border border-red-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400/20 focus:border-red-400 text-sm font-medium transition-all bg-slate-50"
                 />
               </div>
             </div>
 
             {deleteError && (
-              <div className="mb-4 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold bg-red-50 text-red-600 border border-red-200 animate-in slide-in-from-top-2 duration-300">
+              <div className="mb-4 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold bg-red-50 text-red-600 border border-red-200">
                 <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
                 {deleteError}
               </div>
@@ -648,14 +912,14 @@ export default function Account() {
             <div className="flex gap-3">
               <button
                 onClick={() => { setShowDeleteModal(false); setDeleteConfirm(''); setDeletePassword(''); setDeleteError(''); }}
-                className="flex-1 px-4 py-3.5 border-2 border-slate-200 rounded-[14px] text-sm font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all duration-300 hover:scale-[1.02]"
+                className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all duration-200"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteAccount}
                 disabled={deleteConfirm !== 'DELETE' || !deletePassword.trim() || deleteLoading}
-                className="flex-1 px-4 py-3.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-[14px] text-sm font-bold transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-red-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl text-sm font-bold transition-all duration-200 hover:shadow-lg hover:shadow-red-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {deleteLoading ? (
                   <>

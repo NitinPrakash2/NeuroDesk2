@@ -54,7 +54,7 @@ const Sidebar = () => {
       <div className="p-4 border-t border-gray-100 m-3 rounded-xl hover:bg-gray-50 cursor-pointer flex items-center space-x-3 transition-colors">
         <div className="w-9 h-9 rounded-full overflow-hidden border border-gray-200 flex-shrink-0">
           <img
-            src={`https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(user?.name || 'user')}`}
+            src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`}
             alt="User avatar"
             className="w-full h-full object-cover"
           />

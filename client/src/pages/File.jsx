@@ -369,7 +369,7 @@ const File = () => {
         </nav>
 
         <div className="p-3 m-4 border border-slate-100 rounded-2xl flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors">
-          <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} alt={user?.name || 'User'} className="w-10 h-10 rounded-full" />
+          <img src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} alt={user?.name || 'User'} className="w-10 h-10 rounded-full object-cover" />
           <div className="flex-1">
             <p className="text-sm font-bold text-slate-800">{user?.name || 'User'}</p>
             <p className="text-xs font-semibold text-slate-400">Free plan</p>
