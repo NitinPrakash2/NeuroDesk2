@@ -49,7 +49,7 @@ export default function Account() {
     try {
       await api.post('/user/set-password', { password: createPasswordForm.newPassword });
       setCreatePasswordMsg({ type: 'success', text: 'Password created successfully!' });
-      localStorage.setItem('has_password', 'true');
+      sessionStorage.setItem('has_password', 'true');
       refreshUser();
       setCreatePasswordForm({ newPassword: '', confirmPassword: '' });
     } catch (err) {
@@ -354,7 +354,6 @@ export default function Account() {
                         <h2 className="text-xl font-bold text-slate-900">{user?.name || 'User'}</h2>
                         <p className="text-sm text-slate-500 mt-0.5">{user?.email || 'No email provided'}</p>
                         <div className="flex items-center gap-2 mt-2.5">
-                          <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">Free Plan</span>
                           <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">Joined {new Date().getFullYear()}</span>
                         </div>
                       </div>
@@ -368,7 +367,7 @@ export default function Account() {
                       {[
                         { label: 'Full Name', value: user?.name || '\u2014' },
                         { label: 'Email Address', value: user?.email || '\u2014' },
-                        { label: 'Account Type', value: 'Free' },
+
                         { label: 'Status', value: 'Active', highlight: true },
                       ].map((item, i) => (
                         <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
@@ -377,31 +376,6 @@ export default function Account() {
                             <p className="text-xs text-slate-400 font-medium">{item.label}</p>
                             <p className={`text-sm font-semibold ${item.highlight ? 'text-emerald-600' : 'text-slate-800'}`}>{item.value}</p>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* PLAN */}
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-sm font-semibold text-slate-700">Free Plan</h3>
-                        <p className="text-sm text-slate-500 mt-0.5">Upgrade to unlock premium features</p>
-                      </div>
-                      <button className="text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-5 py-2 rounded-lg transition-colors">
-                        Upgrade to Pro
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3 mt-5 pt-5 border-t border-slate-100">
-                      {[
-                        { label: 'Storage', value: '100 MB' },
-                        { label: 'AI Actions', value: '50 / day' },
-                        { label: 'Team', value: '1 member' },
-                      ].map((f, i) => (
-                        <div key={i} className="text-center">
-                          <p className="text-xs text-slate-400 font-medium">{f.label}</p>
-                          <p className="text-sm font-semibold text-slate-800 mt-0.5">{f.value}</p>
                         </div>
                       ))}
                     </div>
