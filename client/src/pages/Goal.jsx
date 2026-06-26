@@ -272,12 +272,12 @@ export default function Goal() {
           onChange={e => setInput(e.target.value)}
           placeholder="Ask about your goal..."
           disabled={disabled}
-          className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+          className="flex-1 px-2.5 md:px-3 py-2 border border-slate-200 rounded-lg text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={disabled || !input.trim()}
-          className="px-3 py-2 bg-indigo-500 text-white rounded-lg text-sm font-bold hover:bg-indigo-600 disabled:opacity-50 transition-colors"
+          className="px-2.5 md:px-3 py-2 bg-indigo-500 text-white rounded-lg text-xs md:text-sm font-bold hover:bg-indigo-600 disabled:opacity-50 transition-colors"
         >
           Send
         </button>
@@ -316,17 +316,17 @@ export default function Goal() {
 
           {/* STATS */}
           {!loading && goals.length > 0 && (
-            <div className="grid grid-cols-3 gap-3 md:gap-4 mb-8">
+            <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
               {[
                 { label: 'Total Goals', value: goals.length, color: 'bg-indigo-50 text-indigo-700', icon: '🎯' },
                 { label: 'Completed', value: goals.filter(g => g.status === 'completed').length, color: 'bg-green-50 text-green-700', icon: '✅' },
                 { label: 'In Progress', value: goals.filter(g => g.status === 'active').length, color: 'bg-orange-50 text-orange-700', icon: '🔥' },
               ].map(s => (
-                <div key={s.label} className={`${s.color} rounded-[16px] p-4 flex items-center gap-3 hover:shadow-lg hover:scale-[1.03] transition-all duration-300 cursor-pointer`}>
-                  <span className="text-2xl">{s.icon}</span>
-                  <div>
-                    <p className="text-2xl font-bold">{s.value}</p>
-                    <p className="text-xs font-semibold opacity-70">{s.label}</p>
+                <div key={s.label} className={`${s.color} rounded-[16px] p-3 md:p-4 flex items-center gap-2 md:gap-3 hover:shadow-lg hover:scale-[1.03] transition-all duration-300 cursor-pointer`}>
+                  <span className="text-lg md:text-2xl">{s.icon}</span>
+                  <div className="min-w-0">
+                    <p className="text-lg md:text-2xl font-bold truncate">{s.value}</p>
+                    <p className="text-[10px] md:text-xs font-semibold opacity-70 truncate">{s.label}</p>
                   </div>
                 </div>
               ))}
@@ -337,12 +337,12 @@ export default function Goal() {
           {loading ? (
             <div className="space-y-4">{[...Array(3)].map((_, i) => <SkeletonCard key={i} />)}</div>
           ) : goals.length === 0 ? (
-            <div className="text-center py-24">
-              <div className="text-6xl mb-4">🎯</div>
-              <h3 className="text-xl font-bold text-slate-800 mb-2">No goals yet</h3>
-              <p className="text-slate-500 text-sm mb-6">Add your first goal and let AI create a roadmap for you</p>
-              <button onClick={openModal} className="inline-flex items-center gap-2 px-6 py-3 bg-[#5A67D8] text-white rounded-xl text-sm font-bold hover:bg-indigo-600 transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            <div className="text-center py-16 md:py-24">
+              <div className="text-4xl md:text-6xl mb-3 md:mb-4">🎯</div>
+              <h3 className="text-lg md:text-xl font-bold text-slate-800 mb-1 md:mb-2">No goals yet</h3>
+              <p className="text-slate-500 text-xs md:text-sm mb-4 md:mb-6">Add your first goal and let AI create a roadmap for you</p>
+              <button onClick={openModal} className="inline-flex items-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-[#5A67D8] text-white rounded-xl text-xs md:text-sm font-bold hover:bg-indigo-600 transition-colors">
+                <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 Create First Goal
               </button>
             </div>
@@ -357,97 +357,82 @@ export default function Goal() {
 
                 return (
                   <div key={goal.id} className="bg-white rounded-[20px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-indigo-200 transition-all duration-300">
-                    <div className="p-6">
-                      <div className="flex items-start justify-between gap-4">
+                    <div className="p-4 md:p-6">
+                      <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
                         <div className="flex-1 min-w-0">
                           {/* TITLE + BADGES */}
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <h3 className="text-base font-bold text-slate-800">{goal.title}</h3>
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${statusColor(goal.status)}`}>
+                          <div className="flex items-center gap-1.5 md:gap-2 mb-1 flex-wrap">
+                            <h3 className="text-sm md:text-base font-bold text-slate-800 truncate max-w-[200px] md:max-w-none">{goal.title}</h3>
+                            <span className={`text-[10px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 rounded-full capitalize whitespace-nowrap ${statusColor(goal.status)}`}>
                               {goal.status}
                             </span>
                             {steps.length > 0 && (
-                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-600">
+                              <span className="text-[10px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 whitespace-nowrap">
                                 ✨ AI Plan
                               </span>
                             )}
                             {deadlineInfo && deadlineInfo.isOverdue && (
-                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">⏰ Overdue</span>
+                              <span className="text-[10px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 rounded-full bg-red-50 text-red-600 whitespace-nowrap">⏰ Overdue</span>
                             )}
                             {deadlineInfo && deadlineInfo.isApproaching && !deadlineInfo.isOverdue && (
-                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600">⚠️ Deadline Soon</span>
+                              <span className="text-[10px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 whitespace-nowrap">⚠️ Soon</span>
                             )}
                           </div>
 
                           {goal.description && (
-                            <p className="text-sm text-slate-500 mb-2">{goal.description}</p>
+                            <p className="text-xs md:text-sm text-slate-500 mb-1.5 md:mb-2">{goal.description}</p>
                           )}
 
                           {/* DEADLINE INFO */}
                           {deadlineInfo && (
-                            <p className="text-xs text-slate-500 mb-3 font-medium">
+                            <p className="text-[10px] md:text-xs text-slate-500 mb-2 md:mb-3 font-medium">
                               📅 {formatDaysLeft(deadlineInfo.daysLeft)}
                             </p>
                           )}
 
                           {/* DUAL PROGRESS BARS */}
-                          <div className="space-y-2">
-                            {/* Task Progress */}
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full rounded-full transition-all duration-500"
-                                  style={{
-                                    width: `${progress}%`,
-                                    background: progress === 100 ? '#22c55e' : 'linear-gradient(90deg, #5A67D8, #818cf8)'
-                                  }}
-                                />
+                          <div className="space-y-1.5 md:space-y-2">
+                            <div className="flex items-center gap-2 md:gap-3">
+                              <div className="flex-1 h-1.5 md:h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progress}%`, background: progress === 100 ? '#22c55e' : 'linear-gradient(90deg, #5A67D8, #818cf8)' }} />
                               </div>
-                              <span className="text-xs font-bold text-slate-600 w-20 text-right">
+                              <span className="text-[10px] md:text-xs font-bold text-slate-600 w-14 md:w-20 text-right flex-shrink-0">
                                 {steps.length > 0 ? `${completedCount}/${steps.length}` : `${progress}%`}
                               </span>
                             </div>
-                            {/* Time Progress */}
                             {deadlineInfo && (
-                              <div className="flex items-center gap-3">
-                                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full transition-all duration-500"
-                                    style={{
-                                      width: `${deadlineInfo.timeProgress}%`,
-                                      background: deadlineInfo.isOverdue ? '#ef4444' : deadlineInfo.timeProgress > 80 ? '#f97316' : '#94a3b8'
-                                    }}
-                                  />
+                              <div className="flex items-center gap-2 md:gap-3">
+                                <div className="flex-1 h-1 md:h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${deadlineInfo.timeProgress}%`, background: deadlineInfo.isOverdue ? '#ef4444' : deadlineInfo.timeProgress > 80 ? '#f97316' : '#94a3b8' }} />
                                 </div>
-                                <span className="text-xs font-bold text-slate-500 w-20 text-right">⏱️ {Math.round(deadlineInfo.timeProgress)}%</span>
+                                <span className="text-[10px] md:text-xs font-bold text-slate-500 w-14 md:w-20 text-right flex-shrink-0">⏱️ {Math.round(deadlineInfo.timeProgress)}%</span>
                               </div>
                             )}
                           </div>
                         </div>
 
                         {/* ACTIONS */}
-                        <div className="flex items-center gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-1 flex-shrink-0 self-start">
                           <button
                             onClick={() => setChatOpen(chatOpen === goal.id ? null : goal.id)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${chatOpen === goal.id ? 'bg-blue-100 text-blue-700' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
-                            title="Ask AI about this goal"
+                            className={`flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-colors whitespace-nowrap ${chatOpen === goal.id ? 'bg-blue-100 text-blue-700' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
                           >
                             💬 Chat
                           </button>
                           {steps.length > 0 && (
                             <button
                               onClick={() => setExpandedGoal(isExpanded ? null : goal.id)}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${isExpanded ? 'bg-purple-100 text-purple-700' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
+                              className={`flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-colors whitespace-nowrap ${isExpanded ? 'bg-purple-100 text-purple-700' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
                             >
                               ✨ AI Plan
-                              <svg className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                              <svg className={`w-2.5 h-2.5 md:w-3 md:h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                             </button>
                           )}
                           <button
                             onClick={() => deleteGoal(goal.id)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors ml-1"
+                            className="w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors flex-shrink-0"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                           </button>
                         </div>
                       </div>
@@ -455,12 +440,12 @@ export default function Goal() {
 
                     {/* 💬 AI CHAT PANEL */}
                     {chatOpen === goal.id && (
-                      <div className="px-6 pb-6 border-t border-slate-100 pt-4">
-                        <p className="text-xs font-bold text-blue-600 mb-3">💬 Goal Coach</p>
-                        <div className="bg-slate-50 rounded-xl p-3 h-64 overflow-y-auto mb-3 space-y-2">
+                      <div className="px-4 md:px-6 pb-4 md:pb-6 border-t border-slate-100 pt-3 md:pt-4">
+                        <p className="text-[10px] md:text-xs font-bold text-blue-600 mb-2 md:mb-3">💬 Goal Coach</p>
+                        <div className="bg-slate-50 rounded-xl p-2 md:p-3 h-48 md:h-64 overflow-y-auto mb-2 md:mb-3 space-y-2">
                           {(chatMessages[goal.id] || []).map((msg, i) => (
                             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                              <div className={`max-w-xs px-3 py-2 rounded-lg text-sm ${msg.role === 'user' ? 'bg-indigo-500 text-white' : 'bg-white text-slate-700 border border-slate-200'}`}>
+                              <div className={`max-w-[200px] md:max-w-xs px-2.5 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm ${msg.role === 'user' ? 'bg-indigo-500 text-white' : 'bg-white text-slate-700 border border-slate-200'}`}>
                                 {msg.text}
                               </div>
                             </div>
@@ -483,43 +468,39 @@ export default function Goal() {
 
                     {/* ✅ EXPANDABLE STEPS WITH CHECKBOXES */}
                     {isExpanded && steps.length > 0 && (
-                      <div className="px-6 pb-6 border-t border-slate-100 pt-4">
-                        <p className="text-xs font-bold text-purple-600 mb-4 flex items-center gap-1.5">
+                      <div className="px-4 md:px-6 pb-4 md:pb-6 border-t border-slate-100 pt-3 md:pt-4">
+                        <p className="text-[10px] md:text-xs font-bold text-purple-600 mb-3 md:mb-4 flex items-center gap-1.5">
                           <span>✨</span> AI-Generated Roadmap
                           <span className="ml-auto text-slate-400 font-semibold">{completedCount}/{steps.length} completed</span>
                         </p>
-                        <ol className="space-y-3">
+                        <ol className="space-y-2 md:space-y-3">
                           {steps.map((step, i) => (
                             <li
                               key={i}
-                              className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 group ${step.completed ? 'bg-green-50' : 'bg-slate-50 hover:bg-indigo-50'}`}
+                              className={`flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-xl cursor-pointer transition-all duration-200 group ${step.completed ? 'bg-green-50' : 'bg-slate-50 hover:bg-indigo-50'}`}
                               onClick={() => toggleStep(goal, i)}
                             >
-                              {/* CHECKBOX */}
-                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${step.completed ? 'bg-green-500 border-green-500' : 'border-slate-300 group-hover:border-indigo-400'}`}>
+                              <div className={`w-4 h-4 md:w-5 md:h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${step.completed ? 'bg-green-500 border-green-500' : 'border-slate-300 group-hover:border-indigo-400'}`}>
                                 {step.completed && (
-                                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg className="w-2.5 h-2.5 md:w-3 md:h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                   </svg>
                                 )}
                               </div>
-                              {/* STEP NUMBER */}
-                              <span className={`w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${step.completed ? 'bg-green-200 text-green-700' : 'bg-indigo-100 text-indigo-600'}`}>
+                              <span className={`w-4 h-4 md:w-5 md:h-5 rounded-full text-[9px] md:text-xs font-bold flex items-center justify-center flex-shrink-0 ${step.completed ? 'bg-green-200 text-green-700' : 'bg-indigo-100 text-indigo-600'}`}>
                                 {i + 1}
                               </span>
-                              {/* STEP TEXT */}
-                              <span className={`text-sm flex-1 transition-all ${step.completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                              <span className={`text-[11px] md:text-sm flex-1 transition-all ${step.completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
                                 {step.text}
                               </span>
-                              {step.completed && <span className="text-xs text-green-500 font-bold">Done ✓</span>}
+                              {step.completed && <span className="text-[10px] md:text-xs text-green-500 font-bold flex-shrink-0">Done ✓</span>}
                             </li>
                           ))}
                         </ol>
 
-                        {/* COMPLETION MESSAGE */}
                         {progress === 100 && (
-                          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-xl text-center">
-                            <p className="text-sm font-bold text-green-700">🎉 Goal Completed! Amazing work!</p>
+                          <div className="mt-3 md:mt-4 p-2 md:p-3 bg-green-50 border border-green-200 rounded-xl text-center">
+                            <p className="text-xs md:text-sm font-bold text-green-700">🎉 Goal Completed! Amazing work!</p>
                           </div>
                         )}
                       </div>
@@ -532,104 +513,104 @@ export default function Goal() {
 
       {/* ADD GOAL MODAL */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-[24px] p-8 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-slate-800">New Goal 🎯</h2>
-              <button onClick={() => setShowModal(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-t-[24px] sm:rounded-[24px] p-5 md:p-8 w-full sm:max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4 md:mb-6">
+              <h2 className="text-base md:text-xl font-bold text-slate-800">New Goal 🎯</h2>
+              <button onClick={() => setShowModal(false)} className="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400">
+                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">Goal *</label>
+                <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1 md:mb-1.5">Goal *</label>
                 <input
                   type="text"
                   value={form.title}
                   onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
                   placeholder="e.g. I want to become AI ML Engineer"
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs md:text-sm"
                   required
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">Description (optional)</label>
+                <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1 md:mb-1.5">Description (optional)</label>
                 <textarea
                   value={form.description}
                   onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
                   placeholder="Why is this goal important to you?"
                   rows={2}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm resize-none"
+                  className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs md:text-sm resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">Duration (optional)</label>
+                <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1 md:mb-1.5">Duration (optional)</label>
                 <input
                   type="text"
                   value={form.duration}
                   onChange={e => setForm(p => ({ ...p, duration: e.target.value }))}
                   placeholder="e.g. 6 months, 1 year, 90 days"
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs md:text-sm"
                 />
                 {!form.duration && form.title && extractDuration(form.title) && (
-                  <p className="text-xs text-indigo-600 mt-1.5 font-medium">💡 Detected: {extractDuration(form.title)}</p>
+                  <p className="text-[10px] md:text-xs text-indigo-600 mt-1 md:mt-1.5 font-medium">💡 Detected: {extractDuration(form.title)}</p>
                 )}
               </div>
 
               {/* AI PLAN SECTION */}
-              <div className="bg-[#F4F4FF] rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-bold text-indigo-700 flex items-center gap-1.5">
-                    <span>✨</span> AI Roadmap Generator
+              <div className="bg-[#F4F4FF] rounded-xl p-3 md:p-4">
+                <div className="flex items-center justify-between mb-2 md:mb-3 gap-2">
+                  <p className="text-xs md:text-sm font-bold text-indigo-700 flex items-center gap-1.5">
+                    <span>✨</span> AI Roadmap
                   </p>
                   <button
                     type="button"
                     onClick={generateAIPlan}
                     disabled={!form.title.trim() || aiLoading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#5A67D8] text-white rounded-lg text-xs font-bold hover:bg-indigo-600 disabled:opacity-50 transition-colors"
+                    className="flex items-center gap-1 px-2.5 md:px-3 py-1.5 bg-[#5A67D8] text-white rounded-lg text-[10px] md:text-xs font-bold hover:bg-indigo-600 disabled:opacity-50 transition-colors whitespace-nowrap"
                   >
                     {aiLoading ? (
                       <>
                         <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                        Generating...
+                        Gen...
                       </>
-                    ) : '🚀 Generate Steps'}
+                    ) : '🚀 Generate'}
                   </button>
                 </div>
 
                 {!aiPlan && !aiLoading && (
-                  <p className="text-xs text-indigo-500">Enter your goal above and click Generate to get an AI-powered step-by-step roadmap</p>
+                  <p className="text-[10px] md:text-xs text-indigo-500">Enter your goal and click Generate for an AI roadmap</p>
                 )}
 
                 {aiLoading && (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5 md:space-y-2">
                     {[...Array(5)].map((_, i) => (
-                      <div key={i} className="h-3 bg-indigo-100 rounded animate-pulse" style={{ width: `${65 + i * 7}%` }} />
+                      <div key={i} className="h-2 md:h-3 bg-indigo-100 rounded animate-pulse" style={{ width: `${65 + i * 7}%` }} />
                     ))}
                   </div>
                 )}
 
                 {aiPlan && !aiLoading && (
-                  <ol className="space-y-2">
+                  <ol className="space-y-1.5 md:space-y-2">
                     {aiPlan.map((step, i) => (
-                      <li key={i} className="flex items-center gap-2.5 p-2 bg-white rounded-lg">
-                        <span className="w-5 h-5 rounded-full bg-indigo-200 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
-                        <span className="text-xs text-indigo-800">{step.text}</span>
+                      <li key={i} className="flex items-center gap-2 p-1.5 md:p-2 bg-white rounded-lg">
+                        <span className="w-4 h-4 md:w-5 md:h-5 rounded-full bg-indigo-200 text-indigo-700 text-[9px] md:text-xs font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                        <span className="text-[10px] md:text-xs text-indigo-800">{step.text}</span>
                       </li>
                     ))}
                   </ol>
                 )}
               </div>
 
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50">
+              <div className="flex gap-2 md:gap-3 pt-1 md:pt-2">
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-3 md:px-4 py-2.5 md:py-3 border border-slate-200 rounded-xl text-xs md:text-sm font-bold text-slate-600 hover:bg-slate-50">
                   Cancel
                 </button>
-                <button type="submit" className="flex-1 px-4 py-3 bg-[#5A67D8] text-white rounded-xl text-sm font-bold hover:bg-indigo-600 transition-colors">
+                <button type="submit" className="flex-1 px-3 md:px-4 py-2.5 md:py-3 bg-[#5A67D8] text-white rounded-xl text-xs md:text-sm font-bold hover:bg-indigo-600 transition-colors">
                   Save Goal
                 </button>
               </div>
