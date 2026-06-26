@@ -1046,51 +1046,20 @@ const extractAndSave = async (req, res) => {
       WHERE id = ${fileId} AND user_id = ${userId}
     `;
 
-    // AI decides what to save where
-    const categorizeResult = await callAI([
-      {
-        role: 'system',
-        content: `You are a smart assistant that categorizes extracted information. Analyze the points and decide what should be saved as Notes vs Memory.
-
-Rules:
-- MEMORY: Dates, deadlines, numbers, emails, phone numbers, passwords, URLs, addresses, IDs, codes, account numbers
-- NOTES: Concepts, definitions, formulas, explanations, procedures, important facts, study material
-
-Return ONLY a JSON object with this structure:
-{
-  "notes": ["point1", "point2"],
-  "memories": [{"label": "Label", "value": "Value", "type": "date|number|contact|password|other"}]
-}
-
-No markdown, no explanation.`
-      },
-      {
-        role: 'user',
-        content: `Categorize these points from "${file.name}":\n${points.map((p, i) => `${i + 1}. ${p}`).join('\n')}`
-      }
-    ]);
-
-    let catRaw = categorizeResult.content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-    const catMatch = catRaw.match(/\{[\s\S]*\}/);
-    const categorized = catMatch ? JSON.parse(catMatch[0]) : { notes: points, memories: [] };
-
     let savedNotes = [];
     let savedMemories = [];
 
-    // Save as Notes
-    if (categorized.notes && categorized.notes.length > 0) {
-      const noteTitle = `Important Points from ${file.name}`;
-      const noteContent = categorized.notes.map((p, i) => `${i + 1}. ${p}`).join('\n\n');
-      
-      const [note] = await sql`
-        INSERT INTO notes (user_id, title, content, color, source)
-        VALUES (${userId}, ${noteTitle}, ${noteContent}, 'blue', 'ai')
-        RETURNING *
-      `;
-      savedNotes.push(note);
-    }
+    // Save note with all points
+    const noteTitle = `Important Points from ${file.name}`;
+    const noteContent = points.map((p, i) => `${i + 1}. ${p}`).join('\n\n');
+    const [note] = await sql`
+      INSERT INTO notes (user_id, title, content, color, source)
+      VALUES (${userId}, ${noteTitle}, ${noteContent}, 'blue', 'ai')
+      RETURNING *
+    `;
+    savedNotes.push(note);
 
-    // Save all points as Memories (each point as individual memory)
+    // Save each point as individual Memory entry
     for (const point of points) {
       try {
         const label = point.length > 80 ? point.substring(0, 80) + '...' : point;
@@ -1101,23 +1070,7 @@ No markdown, no explanation.`
         `;
         savedMemories.push(memory);
       } catch (e) {
-        console.log('Memory save error:', e.message);
-      }
-    }
-
-    // Also save AI-categorized memories
-    if (categorized.memories && categorized.memories.length > 0) {
-      for (const mem of categorized.memories) {
-        try {
-          const [memory] = await sql`
-            INSERT INTO memories (user_id, type, label, value, raw_input)
-            VALUES (${userId}, ${mem.type || 'other'}, ${mem.label}, ${mem.value}, ${`From file: ${file.name}`})
-            RETURNING *
-          `;
-          savedMemories.push(memory);
-        } catch (e) {
-          console.log('Memory save error:', e.message);
-        }
+        console.error('Memory save error in extractAndSave:', e.message);
       }
     }
 
@@ -1125,7 +1078,7 @@ No markdown, no explanation.`
       points, 
       savedNotes: savedNotes.length,
       savedMemories: savedMemories.length,
-      message: `Extracted ${points.length} points. Saved ${savedNotes.length} notes and ${savedMemories.length} memories.`
+      message: `Extracted ${points.length} points. Saved ${savedNotes.length} note and ${savedMemories.length} memories.`
     });
   } catch (err) {
     console.error('Extract and save error:', err.message);
