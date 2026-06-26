@@ -86,47 +86,9 @@ export default function Analytics() {
   const maxBar = data ? Math.max(...data.weeklyData.map(d => Math.max(d.created, d.completed, d.notes, 1))) : 1;
 
   return (
-    <div className="flex h-screen w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden">
+    <>
 
-      {/* SIDEBAR */}
-      <aside className="w-[260px] bg-white h-full flex flex-col border-r border-slate-100 flex-shrink-0 z-10">
-        <div className="p-8 flex items-center gap-3">
-          <img src="/Fevicon.png" alt="NeuroDesk" className="w-8 h-8" />
-          <span className="font-bold text-[19px] text-slate-800 tracking-tight">NeuroDesk</span>
-        </div>
-        <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-          {navLinks.map(({ to, label, icon }) => (
-            <Link key={to} to={to} className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">{icon}</svg>
-              {label}
-            </Link>
-          ))}
-          <Link to="/app/analytics" className="flex items-center gap-3 px-4 py-3 bg-[#F4F4FF] text-[#5A67D8] rounded-xl font-bold text-sm">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-            Analytics
-          </Link>
-          <Link to="/app/account" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            My Account
-          </Link>
-        </nav>
-        <div className="p-3 m-4 border border-slate-100 rounded-2xl flex items-center gap-3">
-          <img src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} alt="" className="w-10 h-10 rounded-full object-cover" />
-          <div className="flex-1">
-            <p className="text-sm font-bold text-slate-800">{user?.name || 'User'}</p>
-            <p className="text-xs font-semibold text-slate-400">Free plan</p>
-          </div>
-          <button onClick={logout} title="Logout" className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-          </button>
-        </div>
-      </aside>
-
-      {/* MAIN */}
-      <main className="flex-1 h-full overflow-y-auto p-8">
-        <div className="max-w-[1200px] mx-auto pb-24">
-
-          <PageHeader
+          <PageHeader title="Analytics"
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             searchOpen={searchOpen}
@@ -140,7 +102,7 @@ export default function Analytics() {
 
           {/* WELCOME */}
           <div className="mb-10">
-            <h1 className="text-[28px] font-bold text-slate-800 mb-2 flex items-center gap-2">
+            <h1 className="text-xl md:text-[28px] font-bold text-slate-800 mb-2 flex items-center gap-2">
               Analytics <span className="text-2xl">📊</span>
             </h1>
             <p className="text-slate-500 text-sm font-medium">Your productivity mirror — see how you're really performing</p>
@@ -155,9 +117,8 @@ export default function Analytics() {
           ) : (
             <>
               {/* ── OVERVIEW CARDS ── */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div className="grid grid-cols-2 gap-3 md:gap-4 mb-8">
                 {[
-                  { label: 'Total Tasks', value: data.overview.totalTasks, icon: '📋', color: 'bg-blue-50 text-blue-700', bar: null },
                   { label: 'Completed', value: data.overview.completedTasks, icon: '✅', color: 'bg-green-50 text-green-700', bar: null },
                   { label: 'Pending', value: data.overview.pendingTasks, icon: '⏳', color: 'bg-orange-50 text-orange-700', bar: null },
                   { label: 'Productivity', value: `${data.overview.productivityPct}%`, icon: '⚡', color: 'bg-indigo-50 text-indigo-700', bar: data.overview.productivityPct },
@@ -180,7 +141,7 @@ export default function Analytics() {
               </div>
 
               {/* ── STREAK + WEEKLY REPORT ── */}
-              <div className="grid grid-cols-2 gap-4 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
                 {/* Streak */}
                 <div className="bg-white rounded-[20px] border border-slate-100 p-6 flex items-center gap-6 hover:shadow-xl hover:scale-[1.02] hover:-translate-y-1 hover:border-orange-200 transition-all duration-300 cursor-pointer">
                   <div className="text-5xl">🔥</div>
@@ -318,7 +279,7 @@ export default function Analytics() {
               )}
 
               {/* ── PRIORITY BREAKDOWN + AI INSIGHTS ── */}
-              <div className="grid grid-cols-[1fr_1.4fr] gap-4 mb-8">
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-4 mb-8">
                 {/* Priority breakdown */}
                 <div className="bg-white rounded-[20px] border border-slate-100 p-6 hover:shadow-xl hover:border-blue-200 hover:scale-[1.01] transition-all duration-300 cursor-pointer">
                   <p className="text-base font-bold text-slate-800 mb-5">📊 Task Priority</p>
@@ -391,8 +352,6 @@ export default function Analytics() {
               </div>
             </>
           )}
-        </div>
-      </main>
-    </div>
+      </>
   );
 }

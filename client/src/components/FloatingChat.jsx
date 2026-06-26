@@ -92,7 +92,7 @@ export default function FloatingChat() {
     <>
       {/* FAB buttons */}
       {!isChatOpen && (
-        <div className="fixed bottom-6 right-6 flex flex-col items-center gap-2 z-50">
+        <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 flex flex-col items-center gap-2 z-50">
           {chatMessages.length > 0 && (
             <button
               onClick={() => setShowHistory(true)}
@@ -116,7 +116,7 @@ export default function FloatingChat() {
 
       {/* Chat Panel */}
       {(isChatOpen || isClosing) && (
-        <div className={`fixed bottom-10 right-10 w-[380px] bg-white rounded-[24px] shadow-[0_12px_40px_rgb(0,0,0,0.12)] border border-slate-100 overflow-hidden z-50 flex flex-col ${isClosing ? 'animate-chatSlideOut' : 'animate-chatSlideIn'}`}>
+        <div className={`fixed bottom-20 sm:bottom-10 right-4 sm:right-10 w-[calc(100vw-32px)] sm:w-[380px] bg-white rounded-[24px] shadow-[0_12px_40px_rgb(0,0,0,0.12)] border border-slate-100 overflow-hidden z-50 flex flex-col ${isClosing ? 'animate-chatSlideOut' : 'animate-chatSlideIn'}`}>
           {/* Header */}
           <div className="px-6 py-4 flex justify-between items-center border-b border-slate-50 bg-gradient-to-r from-indigo-50 to-purple-50">
             <span className="text-[13px] font-bold text-slate-800 flex items-center gap-2">

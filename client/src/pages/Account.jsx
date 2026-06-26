@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 import api from '../services/api';
 import ForgotPasswordModal from '../components/ForgotPasswordModal';
 import PasswordInput from '../components/PasswordInput';
+import PageHeader from '../components/PageHeader';
 
 export default function Account() {
   const { user, logout, refreshUser } = useAuth();
@@ -26,7 +28,9 @@ export default function Account() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [otpStep, setOtpStep] = useState(0); // 0=not started, 1=sent, 2=verified
+  const [otpStep, setOtpStep] = useState(0);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const { notifications } = useNotifications();
   const [otpCode, setOtpCode] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
 
@@ -243,98 +247,52 @@ export default function Account() {
   ];
 
   return (
-    <div className="flex h-screen w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden">
+    <div className="w-full space-y-6">
+      <PageHeader title="Account Settings" notificationOpen={notificationOpen} setNotificationOpen={setNotificationOpen} />
 
-      {/* SIDEBAR */}
-      <aside className="w-[260px] bg-white h-full flex flex-col border-r border-slate-100 flex-shrink-0 z-10">
-        <Link to="/" className="p-8 flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <img src="/Fevicon.png" alt="NeuroDesk" className="w-8 h-8" />
-          <span className="font-bold text-[19px] text-slate-800 tracking-tight">NeuroDesk</span>
-        </Link>
+      {/* TWO-COLUMN LAYOUT - stack on mobile */}
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
 
-        <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-          {navLinks.map(({ to, label, icon }) => (
-            <Link key={to} to={to} className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">{icon}</svg>
-              {label}
-            </Link>
-          ))}
-          <Link to="/app/account" className="flex items-center gap-3 px-4 py-3 bg-[#F4F4FF] text-[#5A67D8] rounded-xl font-bold text-sm transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            My Account
-          </Link>
-        </nav>
-
-        <div className="p-3 m-4 border border-slate-100 rounded-2xl flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors">
-          <img src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} alt={user?.name} className="w-10 h-10 rounded-full object-cover" />
-          <div className="flex-1">
-            <p className="text-sm font-bold text-slate-800">{user?.name || 'User'}</p>
-            <p className="text-xs font-semibold text-slate-400">Free plan</p>
-          </div>
-          <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7 7" /></svg>
-        </div>
-      </aside>
-
-      {/* MAIN */}
-      <main className="flex-1 h-full overflow-y-auto">
-        <div className="max-w-6xl mx-auto p-8">
-
-          {/* HEADER */}
-          <div className="mb-10">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-200">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-              </div>
-              <div>
-                <h1 className="text-[28px] font-bold text-slate-800 tracking-tight">Account Settings</h1>
-                <p className="text-slate-500 text-sm font-medium mt-0.5">Manage your profile, security preferences, and account details</p>
-              </div>
-            </div>
-          </div>
-
-          {/* TWO-COLUMN LAYOUT */}
-          <div className="flex gap-8">
-
-            {/* LEFT: TABS NAVIGATION */}
-            <div className="w-64 flex-shrink-0 space-y-1.5">
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => { setActiveTab(tab.id); setPasswordMsg(null); setContactMsg(null); }}
-                    className={`w-full text-left p-4 rounded-2xl transition-all duration-200 group ${
+        {/* LEFT: TABS NAVIGATION */}
+        <div className="w-full lg:w-64 flex-shrink-0">
+          <div className="flex lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => { setActiveTab(tab.id); setPasswordMsg(null); setContactMsg(null); }}
+                  className={`flex-shrink-0 w-full text-left p-4 rounded-2xl transition-all duration-200 group ${
+                    isActive
+                      ? 'bg-white shadow-lg shadow-indigo-100/50 border border-indigo-100'
+                      : 'bg-transparent border border-transparent hover:bg-white hover:shadow-md hover:border-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 ${
                       isActive
-                        ? 'bg-white shadow-lg shadow-indigo-100/50 border border-indigo-100'
-                        : 'bg-transparent border border-transparent hover:bg-white hover:shadow-md hover:border-slate-100'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 ${
-                        isActive
-                          ? 'bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-md'
-                          : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-500'
-                      }`}>
-                        {tab.icon}
-                      </div>
-                      <div>
-                        <p className={`text-sm font-bold ${
-                          isActive ? 'text-indigo-600' : 'text-slate-700 group-hover:text-slate-900'
-                        }`}>{tab.label}</p>
-                        <p className="text-[11px] text-slate-400 font-medium mt-0.5">{tab.desc}</p>
-                      </div>
+                        ? 'bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-md'
+                        : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-500'
+                    }`}>
+                      {tab.icon}
                     </div>
-                  </button>
-                );
-              })}
-            </div>
+                    <div>
+                      <p className={`text-sm font-bold ${
+                        isActive ? 'text-indigo-600' : 'text-slate-700 group-hover:text-slate-900'
+                      }`}>{tab.label}</p>
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">{tab.desc}</p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-            {/* RIGHT: CONTENT */}
-            <div className="flex-1 min-h-[600px]">
+        {/* RIGHT: CONTENT */}
+        <div className="flex-1 min-h-[400px] md:min-h-[600px]">
 
-              {/* ===== PROFILE TAB ===== */}
+          {/* ===== PROFILE TAB ===== */}
               {activeTab === 'profile' && (
                 <div className="space-y-5 animate-fadeIn">
 
@@ -352,7 +310,7 @@ export default function Account() {
                       </div>
                       <div className="flex-1">
                         <h2 className="text-xl font-bold text-slate-900">{user?.name || 'User'}</h2>
-                        <p className="text-sm text-slate-500 mt-0.5">{user?.email || 'No email provided'}</p>
+                        <p className="text-sm text-slate-500 mt-0.5 truncate">{user?.email || 'No email provided'}</p>
                         <div className="flex items-center gap-2 mt-2.5">
                           <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">Joined {new Date().getFullYear()}</span>
                         </div>
@@ -370,11 +328,11 @@ export default function Account() {
 
                         { label: 'Status', value: 'Active', highlight: true },
                       ].map((item, i) => (
-                        <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
-                          <div className={`w-2 h-2 rounded-full ${item.highlight ? 'bg-emerald-400' : 'bg-slate-300'}`}></div>
-                          <div>
+                        <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 min-w-0">
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${item.highlight ? 'bg-emerald-400' : 'bg-slate-300'}`}></div>
+                          <div className="min-w-0">
                             <p className="text-xs text-slate-400 font-medium">{item.label}</p>
-                            <p className={`text-sm font-semibold ${item.highlight ? 'text-emerald-600' : 'text-slate-800'}`}>{item.value}</p>
+                            <p className={`text-sm font-semibold truncate ${item.highlight ? 'text-emerald-600' : 'text-slate-800'}`}>{item.value}</p>
                           </div>
                         </div>
                       ))}
@@ -407,12 +365,12 @@ export default function Account() {
                         <p className="text-sm text-slate-500 mt-1">
                           {user?.has_password ? 'Keep your account secure. Use a strong password with at least 6 characters.' : 'Set a password for your account to enable password-based login.'}
                         </p>
-                        <p className="text-xs text-slate-400 mt-2">
-                          {user?.email}{' '}
-                          <button type="button" onClick={() => setShowForgotPassword(true)} className="text-indigo-500 hover:text-indigo-600 font-medium ml-1">
-                            Forgot password?
-                          </button>
+                        <p className="text-xs text-slate-400 mt-2 truncate">
+                          {user?.email}
                         </p>
+                        <button type="button" onClick={() => setShowForgotPassword(true)} className="text-xs text-indigo-500 hover:text-indigo-600 font-medium">
+                          Forgot password?
+                        </button>
                       </div>
                     </div>
 
@@ -536,7 +494,7 @@ export default function Account() {
                                   <input
                                     type="text" maxLength={6}
                                     value={otpCode}
-                                    onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                    onChange={e => setOtpCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
                                     placeholder="000000"
                                     className="flex-1 px-3 py-2 border border-indigo-200 rounded-lg text-center text-lg font-bold tracking-[6px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 text-sm bg-white"
                                     autoFocus
@@ -649,7 +607,7 @@ export default function Account() {
                 <div className="space-y-6 animate-fadeIn">
 
                   {/* SUPPORT STATS */}
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {[
                       {
                         icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>,
@@ -804,8 +762,6 @@ export default function Account() {
 
             </div>
           </div>
-        </div>
-      </main>
 
       {/* FORGOT PASSWORD MODAL */}
       {showForgotPassword && <ForgotPasswordModal onClose={() => setShowForgotPassword(false)} initialEmail={user?.email || ''} />}
@@ -906,6 +862,6 @@ export default function Account() {
           </div>
         </div>
       )}
-    </div>
+      </div>
   );
 }

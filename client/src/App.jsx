@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { ChatProvider } from './context/ChatContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import AppLayout from './components/layout/AppLayout';
 import FloatingChat from './components/FloatingChat';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
@@ -36,18 +37,20 @@ function AnimatedRoutes() {
           path="/app/*"
           element={
             <ProtectedRoute>
-              <FloatingChat />
-              <Routes>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/tasks" element={<Tasks />} />
-                <Route path="/notes" element={<Notes />} />
-                <Route path="/files" element={<Files />} />
-                <Route path="/memory" element={<Memory />} />
-                <Route path="/goals" element={<Goal />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/account" element={<Account />} />
-                <Route path="*" element={<Navigate to="/app/dashboard" />} />
-              </Routes>
+              <AppLayout>
+                <FloatingChat />
+                <Routes>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/tasks" element={<Tasks />} />
+                  <Route path="/notes" element={<Notes />} />
+                  <Route path="/files" element={<Files />} />
+                  <Route path="/memory" element={<Memory />} />
+                  <Route path="/goals" element={<Goal />} />
+                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/account" element={<Account />} />
+                  <Route path="*" element={<Navigate to="/app/dashboard" />} />
+                </Routes>
+              </AppLayout>
             </ProtectedRoute>
           }
         />

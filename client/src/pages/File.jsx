@@ -8,7 +8,7 @@ import { useNotifications } from '../context/NotificationContext';
 import PageHeader from '../components/PageHeader';
 
 const FileItem = ({ file, onView, onDelete, onSummary, onExtract, loading }) => (
-  <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-lg hover:scale-[1.01] transition-all duration-300 group">
+  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-lg hover:scale-[1.01] transition-all duration-300 group gap-3">
     <div className="flex items-center space-x-3 flex-1 min-w-0">
       <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
         <FileText className="w-5 h-5 text-indigo-500" />
@@ -18,26 +18,26 @@ const FileItem = ({ file, onView, onDelete, onSummary, onExtract, loading }) => 
         <p className="text-xs text-gray-500">{file.size} • {file.type}</p>
       </div>
     </div>
-    <div className="flex items-center space-x-2 ml-4">
+    <div className="flex items-center gap-1.5 sm:ml-4 flex-wrap">
       {file.type === 'PDF' && (
         <>
           <button
             onClick={onSummary}
             disabled={loading}
-            className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-medium transition-colors flex items-center space-x-1 disabled:opacity-50"
+            className="px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-medium transition-colors flex items-center gap-1 disabled:opacity-50"
             title="AI Summary"
           >
             {loading === 'summary' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-            <span>Summary</span>
+            <span className="hidden sm:inline">Summary</span>
           </button>
           <button
             onClick={onExtract}
             disabled={loading}
-            className="px-3 py-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 text-xs font-medium transition-colors flex items-center space-x-1 disabled:opacity-50"
+            className="px-2.5 py-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 text-xs font-medium transition-colors flex items-center gap-1 disabled:opacity-50"
             title="Extract Points"
           >
             {loading === 'extract' ? <Loader2 className="w-3 h-3 animate-spin" /> : <List className="w-3 h-3" />}
-            <span>Extract</span>
+            <span className="hidden sm:inline">Extract</span>
           </button>
         </>
       )}
@@ -322,66 +322,9 @@ const File = () => {
   };
 
   return (
-    <div className="flex h-screen w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden">
-      
-      {/* ================= SIDEBAR ================= */}
-      <aside className="w-[260px] bg-white h-full flex flex-col border-r border-slate-100 flex-shrink-0 z-10">
-        <div className="p-8 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center">
-            <img src="/Fevicon.png" alt="NeuroDesk" className="w-8 h-8 rounded-full" />
-          </div>
-          <span className="font-bold text-[19px] text-slate-800 tracking-tight">NeuroDesk</span>
-        </div>
+    <>
 
-        <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-          <Link to="/app/dashboard" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-            Home
-          </Link>
-          <Link to="/app/tasks" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
-            Tasks
-          </Link>
-          <Link to="/app/notes" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-            Notes
-          </Link>
-          <Link to="/app/files" className="flex items-center gap-3 px-4 py-3 bg-[#F4F4FF] text-[#5A67D8] rounded-xl font-bold text-sm transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-            Files
-          </Link>
-          <Link to="/app/memory" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-            Memory
-          </Link>
-          <Link to="/app/goals" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-            Goals
-          </Link>
-          <Link to="/app/analytics" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-            Analytics
-          </Link>
-          <Link to="/app/account" className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            My Account
-          </Link>
-        </nav>
-
-        <div className="p-3 m-4 border border-slate-100 rounded-2xl flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors">
-          <img src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random`} alt={user?.name || 'User'} className="w-10 h-10 rounded-full object-cover" />
-          <div className="flex-1">
-            <p className="text-sm font-bold text-slate-800">{user?.name || 'User'}</p>
-            <p className="text-xs font-semibold text-slate-400">Free plan</p>
-          </div>
-        </div>
-      </aside>
-
-      {/* ================= MAIN CONTENT ================= */}
-      <main className="flex-1 h-full overflow-y-auto p-8 relative">
-        <div className="max-w-[1200px] mx-auto pb-24">
-
-          <PageHeader
+          <PageHeader title="My Files"
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             searchOpen={searchOpen}
@@ -389,16 +332,21 @@ const File = () => {
             searchFocused={searchFocused}
             setSearchFocused={setSearchFocused}
             searchResults={searchResults}
-            actionButton={{ label: uploading ? 'Uploading...' : 'Add File', onClick: () => setShowUploadModal(true), disabled: uploading }}
             notificationOpen={notificationOpen}
             setNotificationOpen={setNotificationOpen}
           />
 
           {/* WELCOME */}
           <div className="mb-8">
-            <h1 className="text-[28px] font-bold text-slate-800 mb-2 flex items-center gap-2">
-              My Files <span className="text-2xl">📁</span>
-            </h1>
+            <div className="flex items-center justify-between gap-4 mb-2">
+              <h1 className="text-xl md:text-[28px] font-bold text-slate-800 flex items-center gap-2">
+                My Files <span className="text-2xl">📁</span>
+              </h1>
+              <button onClick={() => setShowUploadModal(true)} disabled={uploading} className="flex items-center gap-2 px-4 py-2.5 bg-[#5A67D8] text-white rounded-xl text-xs font-bold hover:bg-indigo-600 transition-all shadow-sm hover:shadow-md flex-shrink-0 disabled:opacity-60">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                {uploading ? 'Uploading...' : 'Upload File'}
+              </button>
+            </div>
             <p className="text-slate-500 text-sm font-medium">Upload and manage your documents with AI-powered insights</p>
           </div>
 
@@ -542,9 +490,7 @@ const File = () => {
           </div>
         </div>
       )}
-        </div>
-      </main>
-    </div>
+      </>
   );
 };
 
