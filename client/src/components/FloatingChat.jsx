@@ -116,10 +116,10 @@ export default function FloatingChat() {
 
       {/* Chat Panel */}
       {(isChatOpen || isClosing) && (
-        <div className={`fixed bottom-4 sm:bottom-10 right-4 sm:right-10 w-[calc(100vw-32px)] sm:w-[380px] bg-white rounded-[24px] shadow-[0_12px_40px_rgb(0,0,0,0.12)] border border-slate-100 overflow-hidden z-50 flex flex-col ${isClosing ? 'animate-chatSlideOut' : 'animate-chatSlideIn'}`}>
+        <div className={`fixed bottom-4 sm:bottom-10 right-4 sm:right-10 w-[calc(100vw-32px)] sm:w-[380px] max-h-[80vh] bg-white rounded-[24px] shadow-[0_12px_40px_rgb(0,0,0,0.12)] border border-slate-100 overflow-hidden z-50 flex flex-col ${isClosing ? 'animate-chatSlideOut' : 'animate-chatSlideIn'}`}>
           {/* Header */}
-          <div className="px-6 py-4 flex justify-between items-center border-b border-slate-50 bg-gradient-to-r from-indigo-50 to-purple-50">
-            <span className="text-[13px] font-bold text-slate-800 flex items-center gap-2">
+          <div className="px-4 md:px-6 py-3 md:py-4 flex justify-between items-center border-b border-slate-50 bg-gradient-to-r from-indigo-50 to-purple-50">
+            <span className="text-[11px] md:text-[13px] font-bold text-slate-800 flex items-center gap-2">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
               AI Assistant
             </span>
@@ -147,17 +147,17 @@ export default function FloatingChat() {
           </div>
 
           {/* Body */}
-          <div className="px-6 py-6 bg-gradient-to-br from-[#FAFBFF] to-[#F8FAFC] h-[240px] flex flex-col">
+          <div className="px-4 md:px-6 py-4 md:py-6 bg-gradient-to-br from-[#FAFBFF] to-[#F8FAFC] flex-1 min-h-0 flex flex-col overflow-hidden">
             {chatMessages.length === 0 ? (
               <>
-                <div className="flex gap-3 mb-6">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 text-white flex items-center justify-center text-xs font-bold shadow-lg">{user?.name?.charAt(0) || 'U'}</div>
+                <div className="flex gap-2 md:gap-3 mb-3 md:mb-6">
+                  <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 text-white flex items-center justify-center text-[10px] md:text-xs font-bold shadow-lg flex-shrink-0">{user?.name?.charAt(0) || 'U'}</div>
                   <div>
-                    <div className="text-[13px] font-bold text-slate-800 mb-0.5">Hello {user?.name || 'User'}! How can I assist you today?</div>
-                    <div className="text-[10px] text-slate-400 font-bold">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    <div className="text-[11px] md:text-[13px] font-bold text-slate-800 mb-0.5">Hello {user?.name || 'User'}! How can I assist you today?</div>
+                    <div className="text-[9px] md:text-[10px] text-slate-400 font-bold">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                   </div>
                 </div>
-                <div className="flex flex-col items-start gap-2 mt-auto">
+                <div className="flex flex-col items-start gap-1.5 mt-auto">
                   {[
                     { emoji: '💾', text: 'My WiFi password is MySecurePass123' },
                     { emoji: '🔍', text: "What's my WiFi password?" },
@@ -165,15 +165,15 @@ export default function FloatingChat() {
                     { emoji: '🎯', text: 'mujhe upsc ki taiyari karni hai aur 1 saal me clear karna hai' },
                   ].map(q => (
                     <button key={q.text} onClick={() => setChatInput(q.text)}
-                      className="text-[11px] px-4 py-2 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full text-slate-600 font-bold shadow-sm flex items-center gap-1.5 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 transition-all hover:scale-105"
+                      className="text-[10px] md:text-[11px] px-3 md:px-4 py-1.5 md:py-2 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full text-slate-600 font-bold shadow-sm flex items-center gap-1 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 transition-all hover:scale-105 truncate max-w-full"
                     >
-                      {q.emoji} {q.text.length > 35 ? q.text.slice(0, 35) + '…' : q.text}
+                      {q.emoji} {q.text.length > 30 ? q.text.slice(0, 30) + '…' : q.text}
                     </button>
                   ))}
                 </div>
               </>
             ) : (
-              <div className="flex-1 overflow-y-auto space-y-3">
+              <div className="flex-1 overflow-y-auto space-y-3 min-h-0">
                 {chatMessages.map((msg, i) => (
                   <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
                     {msg.role === 'assistant' && (
@@ -197,7 +197,7 @@ export default function FloatingChat() {
           </div>
 
           {/* Input */}
-          <div className="px-5 py-4 bg-white border-t border-slate-50 flex items-center gap-3">
+          <div className="px-3 md:px-5 py-3 md:py-4 bg-white border-t border-slate-50 flex items-center gap-2 md:gap-3">
             <div className="flex-1 bg-gradient-to-r from-slate-50 to-slate-100 rounded-2xl flex items-center px-4 py-2.5 border border-slate-200 focus-within:border-indigo-300 focus-within:bg-white transition-all">
               <input
                 type="text"
