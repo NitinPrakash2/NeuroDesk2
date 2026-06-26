@@ -53,7 +53,7 @@ export default function Account() {
     try {
       await api.post('/user/set-password', { password: createPasswordForm.newPassword });
       setCreatePasswordMsg({ type: 'success', text: 'Password created successfully!' });
-      sessionStorage.setItem('has_password', 'true');
+      localStorage.setItem('has_password', 'true');
       refreshUser();
       setCreatePasswordForm({ newPassword: '', confirmPassword: '' });
     } catch (err) {
