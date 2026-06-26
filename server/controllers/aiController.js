@@ -1090,7 +1090,22 @@ No markdown, no explanation.`
       savedNotes.push(note);
     }
 
-    // Save as Memories
+    // Save all points as Memories (each point as individual memory)
+    for (const point of points) {
+      try {
+        const label = point.length > 80 ? point.substring(0, 80) + '...' : point;
+        const [memory] = await sql`
+          INSERT INTO memories (user_id, type, label, value, raw_input)
+          VALUES (${userId}, 'other', ${label}, ${point}, ${`From file: ${file.name}`})
+          RETURNING *
+        `;
+        savedMemories.push(memory);
+      } catch (e) {
+        console.log('Memory save error:', e.message);
+      }
+    }
+
+    // Also save AI-categorized memories
     if (categorized.memories && categorized.memories.length > 0) {
       for (const mem of categorized.memories) {
         try {
