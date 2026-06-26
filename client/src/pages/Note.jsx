@@ -194,32 +194,32 @@ export default function Notes() {
                   <div 
                     key={note.id} 
                     onClick={() => setViewingNote(note)}
-                    className={`${colorClass.bg} p-6 rounded-[20px] shadow-sm border ${colorClass.border} hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group relative min-h-[200px] flex flex-col cursor-pointer`}
+                    className={`${colorClass.bg} p-4 md:p-6 rounded-[20px] shadow-sm border ${colorClass.border} hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group relative min-h-[160px] md:min-h-[200px] flex flex-col cursor-pointer`}
                   >
-                    <h3 className="text-base font-bold text-slate-800 mb-3 pr-8">{note.title}</h3>
-                    <p className="text-sm text-slate-600 font-medium leading-relaxed flex-1 line-clamp-6">
+                    <h3 className="text-sm md:text-base font-bold text-slate-800 mb-2 md:mb-3 pr-6 md:pr-8 truncate">{note.title}</h3>
+                    <p className="text-xs md:text-sm text-slate-600 font-medium leading-relaxed flex-1 line-clamp-4 md:line-clamp-6">
                       {note.content || 'No content'}
                     </p>
-                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-200/50">
-                      <span className="text-xs text-slate-400 font-medium">
+                    <div className="flex items-center justify-between mt-3 md:mt-4 pt-2 md:pt-3 border-t border-slate-200/50">
+                      <span className="text-[10px] md:text-xs text-slate-400 font-medium">
                         {new Date(note.created_at).toLocaleDateString()}
                       </span>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 opacity-60 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <button 
-                          onClick={() => handleEditNote(note)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/80 text-slate-400 hover:text-indigo-600 transition-colors"
+                          onClick={(e) => { e.stopPropagation(); handleEditNote(note); }}
+                          className="w-6 md:w-7 h-6 md:h-7 flex items-center justify-center rounded-lg hover:bg-white/80 text-slate-400 hover:text-indigo-600 transition-colors"
                           title="Edit note"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </button>
                         <button 
-                          onClick={() => deleteNote(note.id)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/80 text-slate-400 hover:text-red-500 transition-colors"
+                          onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
+                          className="w-6 md:w-7 h-6 md:h-7 flex items-center justify-center rounded-lg hover:bg-white/80 text-slate-400 hover:text-red-500 transition-colors"
                           title="Delete note"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         </button>
@@ -230,22 +230,22 @@ export default function Notes() {
               })}
             </div>
           ) : (
-            <div className="text-center py-20">
-              <div className="w-20 h-20 mx-auto mb-6 bg-slate-100 rounded-full flex items-center justify-center">
-                <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-center py-12 md:py-20">
+              <div className="w-14 md:w-20 h-14 md:h-20 mx-auto mb-4 md:mb-6 bg-slate-100 rounded-full flex items-center justify-center">
+                <svg className="w-7 md:w-10 h-7 md:h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-slate-800 mb-2">No notes yet</h3>
-              <p className="text-slate-500 text-sm mb-6">Start capturing your thoughts and ideas</p>
+              <h3 className="text-lg md:text-xl font-bold text-slate-800 mb-1 md:mb-2">No notes yet</h3>
+              <p className="text-slate-500 text-xs md:text-sm mb-4 md:mb-6">Start capturing your thoughts and ideas</p>
               <button 
                 onClick={handleCreateNote}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-[#5A67D8] text-white rounded-xl text-sm font-bold hover:bg-indigo-600 transition-colors shadow-sm"
+                className="inline-flex items-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-[#5A67D8] text-white rounded-xl text-xs md:text-sm font-bold hover:bg-indigo-600 transition-colors shadow-sm"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Create Your First Note
+                Create First Note
               </button>
             </div>
           )}
@@ -254,35 +254,35 @@ export default function Notes() {
       {viewingNote && (() => {
         const colorClass = getColorClasses(viewingNote.color);
         return (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setViewingNote(null)}>
-            <div className="bg-white rounded-[24px] w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-              <div className={`${colorClass.bg} border-b ${colorClass.border} p-6`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-800">{viewingNote.title}</h2>
-                    <p className="text-xs text-slate-500 mt-1 font-medium">{new Date(viewingNote.created_at).toLocaleDateString()}</p>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setViewingNote(null)}>
+            <div className="bg-white rounded-t-[24px] sm:rounded-[24px] w-full sm:max-w-2xl max-h-[85vh] sm:max-h-[80vh] overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className={`${colorClass.bg} border-b ${colorClass.border} p-4 md:p-6`}>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-base md:text-xl font-bold text-slate-800 truncate">{viewingNote.title}</h2>
+                    <p className="text-[10px] md:text-xs text-slate-500 mt-0.5 md:mt-1 font-medium">{new Date(viewingNote.created_at).toLocaleDateString()}</p>
                   </div>
-                  <button onClick={() => setViewingNote(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/60 transition-colors">
-                    <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  <button onClick={() => setViewingNote(null)} className="w-7 md:w-8 h-7 md:h-8 flex items-center justify-center rounded-full hover:bg-white/60 transition-colors flex-shrink-0">
+                    <svg className="w-4 h-4 md:w-5 md:h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
               </div>
-              <div className="p-6 overflow-y-auto" style={{maxHeight: 'calc(80vh - 160px)'}}>
-                <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{viewingNote.content || 'No content'}</p>
+              <div className="p-4 md:p-6 overflow-y-auto" style={{maxHeight: 'calc(80vh - 160px)'}}>
+                <p className="text-xs md:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{viewingNote.content || 'No content'}</p>
               </div>
-              <div className="px-6 py-4 flex gap-3 border-t border-slate-100 flex-shrink-0">
+              <div className="px-4 md:px-6 py-3 md:py-4 flex gap-2 md:gap-3 border-t border-slate-100 flex-shrink-0">
                 <button
                   onClick={() => { setViewingNote(null); handleEditNote(viewingNote); }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 md:py-2.5 border border-slate-200 rounded-xl text-xs md:text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                   Edit
                 </button>
                 <button
                   onClick={() => { deleteNote(viewingNote.id); setViewingNote(null); }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 border border-red-100 rounded-xl text-sm font-bold text-red-500 hover:bg-red-100 transition-colors"
+                  className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-red-50 border border-red-100 rounded-xl text-xs md:text-sm font-bold text-red-500 hover:bg-red-100 transition-colors"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                   Delete
                 </button>
               </div>
@@ -293,31 +293,28 @@ export default function Notes() {
 
       {/* ================= MODAL ================= */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setShowModal(false)}>
           <div 
-            className="bg-white rounded-[24px] p-8 w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-300" 
+            className="bg-white rounded-t-[24px] sm:rounded-[24px] p-5 md:p-8 w-full sm:max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto" 
             onClick={e => e.stopPropagation()}
           >
-            {/* Modal Header */}
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-slate-800">
-                {editingNote ? 'Edit Note' : 'Create New Note'}
+            <div className="flex justify-between items-center mb-4 md:mb-6">
+              <h2 className="text-base md:text-xl font-bold text-slate-800">
+                {editingNote ? 'Edit Note' : 'New Note'}
               </h2>
               <button 
                 onClick={() => setShowModal(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                className="w-7 md:w-8 h-7 md:h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            {/* Modal Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Title Field */}
+            <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5 md:mb-2">
                   Note Title *
                 </label>
                 <input 
@@ -325,44 +322,42 @@ export default function Notes() {
                   value={form.title}
                   onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
                   placeholder="Enter note title..."
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
+                  className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-xs md:text-sm transition-all"
                   required
                   autoFocus
                 />
               </div>
 
-              {/* Content Field */}
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5 md:mb-2">
                   Content
                 </label>
                 <textarea 
                   value={form.content}
                   onChange={(e) => setForm(prev => ({ ...prev, content: e.target.value }))}
                   placeholder="Write your note here..."
-                  rows={6}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none transition-all"
+                  rows={4}
+                  className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-xs md:text-sm resize-none transition-all"
                 />
               </div>
 
-              {/* Color Picker */}
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-3">
+                <label className="block text-xs md:text-sm font-bold text-slate-700 mb-2 md:mb-3">
                   Note Color
                 </label>
-                <div className="flex gap-3">
+                <div className="flex gap-2 md:gap-3">
                   {colors.map((color) => (
                     <button
                       key={color.name}
                       type="button"
                       onClick={() => setForm(prev => ({ ...prev, color: color.name }))}
-                      className={`w-10 h-10 rounded-xl ${color.bg} border-2 ${
+                      className={`w-8 md:w-10 h-8 md:h-10 rounded-xl ${color.bg} border-2 ${
                         form.color === color.name ? color.border : 'border-transparent'
                       } hover:scale-110 transition-transform`}
                       title={color.name}
                     >
                       {form.color === color.name && (
-                        <svg className={`w-5 h-5 mx-auto ${color.text}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className={`w-4 md:w-5 h-4 md:h-5 mx-auto ${color.text}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
                       )}
@@ -371,20 +366,19 @@ export default function Notes() {
                 </div>
               </div>
 
-              {/* Modal Actions */}
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-2 md:gap-3 pt-2 md:pt-4">
                 <button 
                   type="button" 
                   onClick={() => setShowModal(false)}
-                  className="flex-1 px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="flex-1 px-4 md:px-6 py-2.5 md:py-3 border border-slate-200 rounded-xl text-xs md:text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit"
-                  className="flex-1 px-6 py-3 bg-[#5A67D8] text-white rounded-xl text-sm font-bold hover:bg-indigo-600 transition-colors shadow-sm"
+                  className="flex-1 px-4 md:px-6 py-2.5 md:py-3 bg-[#5A67D8] text-white rounded-xl text-xs md:text-sm font-bold hover:bg-indigo-600 transition-colors shadow-sm"
                 >
-                  {editingNote ? 'Update Note' : 'Create Note'}
+                  {editingNote ? 'Update' : 'Create'}
                 </button>
               </div>
             </form>

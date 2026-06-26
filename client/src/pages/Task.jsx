@@ -317,27 +317,26 @@ export default function Tasks() {
                 {filteredTasks.map((task, index) => (
                   <div 
                     key={task.id} 
-                    className="flex items-center justify-between p-6 hover:bg-slate-50 transition-all duration-200 group"
+                    className="flex items-center justify-between p-3 md:p-6 hover:bg-slate-50 transition-all duration-200 group"
                   >
-                    {/* Left: Checkbox & Task Info */}
-                    <div className="flex items-center gap-4 flex-1">
+                    <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
                       <button 
                         onClick={() => toggleTaskStatus(task)}
-                        className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                        className={`w-4 h-4 md:w-5 md:h-5 rounded-lg flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
                           task.status === 'completed'
                             ? 'bg-[#5A67D8] border-[#5A67D8] shadow-sm' 
                             : 'border-2 border-slate-300 hover:border-[#5A67D8] hover:bg-indigo-50'
                         }`}
                       >
                         {task.status === 'completed' && (
-                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-2.5 h-2.5 md:w-3 md:h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                           </svg>
                         )}
                       </button>
                       
                       <div className="flex-1 min-w-0">
-                        <h3 className={`text-sm font-bold truncate transition-all ${
+                        <h3 className={`text-xs md:text-sm font-bold truncate transition-all ${
                           task.status === 'completed' 
                             ? 'text-slate-400 line-through' 
                             : 'text-slate-800'
@@ -345,21 +344,21 @@ export default function Tasks() {
                           {task.title}
                         </h3>
                         {task.description && (
-                          <p className="text-xs text-slate-500 mt-1 truncate">
+                          <p className="text-[10px] md:text-xs text-slate-500 mt-0.5 md:mt-1 truncate">
                             {task.description}
                           </p>
                         )}
-                        <div className="flex items-center gap-3 mt-2">
+                        <div className="flex items-center gap-2 md:gap-3 mt-1 md:mt-2 flex-wrap">
                           {task.due_date && (
-                            <span className="text-xs text-slate-400 flex items-center gap-1">
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <span className="text-[10px] md:text-xs text-slate-400 flex items-center gap-1">
+                              <svg className="w-2.5 h-2.5 md:w-3 md:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                               </svg>
                               Due {new Date(task.due_date).toLocaleDateString()}
                             </span>
                           )}
-                          <span className="text-xs text-slate-400 flex items-center gap-1">
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <span className="text-[10px] md:text-xs text-slate-400 flex items-center gap-1">
+                            <svg className="w-2.5 h-2.5 md:w-3 md:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             {new Date(task.created_at).toLocaleDateString()}
@@ -368,38 +367,47 @@ export default function Tasks() {
                       </div>
                     </div>
 
-                    {/* Right: Priority, Status & Actions */}
-                    <div className="flex items-center gap-4">
-                      <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border capitalize ${getPriorityColor(task.priority)}`}>
+                    <div className="flex items-center gap-1.5 md:gap-4 flex-shrink-0 ml-2">
+                      <span className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[10px] md:text-xs font-bold border capitalize whitespace-nowrap ${getPriorityColor(task.priority)}`}>
                         {task.priority}
                       </span>
                       
-                      <span className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize ${
-                        task.status === 'completed' 
-                          ? 'bg-green-50 text-green-600' 
-                          : task.status === 'in_progress'
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'bg-slate-50 text-slate-500'
-                      }`}>
-                        {task.status.replace('_', ' ')}
-                      </span>
-                      
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="hidden md:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
                           onClick={() => handleEditTask(task)}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"
+                          className="w-7 md:w-8 h-7 md:h-8 flex items-center justify-center rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"
                           title="Edit task"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </button>
                         <button 
                           onClick={() => deleteTask(task.id)}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                          className="w-7 md:w-8 h-7 md:h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
                           title="Delete task"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="flex md:hidden items-center gap-1.5">
+                        <button 
+                          onClick={() => handleEditTask(task)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-indigo-50 text-indigo-500 transition-colors"
+                          title="Edit task"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button 
+                          onClick={() => deleteTask(task.id)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-red-400 transition-colors"
+                          title="Delete task"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         </button>
@@ -409,19 +417,19 @@ export default function Tasks() {
                 ))}
               </div>
             ) : (
-              <div className="p-16 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 bg-slate-100 rounded-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="p-8 md:p-16 text-center">
+                <div className="w-12 md:w-16 h-12 md:h-16 mx-auto mb-3 md:mb-4 bg-slate-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 md:w-8 h-6 md:h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-2">No tasks found</h3>
-                <p className="text-slate-500 text-sm mb-6">Get started by creating your first task</p>
+                <h3 className="text-base md:text-lg font-bold text-slate-800 mb-1 md:mb-2">No tasks found</h3>
+                <p className="text-slate-500 text-xs md:text-sm mb-4 md:mb-6">Get started by creating your first task</p>
                 <button 
                   onClick={handleCreateTask}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#5A67D8] text-white rounded-xl text-sm font-bold hover:bg-indigo-600 transition-colors shadow-sm"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#5A67D8] text-white rounded-xl text-xs md:text-sm font-bold hover:bg-indigo-600 transition-colors shadow-sm"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   Create Task
@@ -432,31 +440,28 @@ export default function Tasks() {
 
       {/* ================= MODAL ================= */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setShowModal(false)}>
           <div 
-            className="bg-white rounded-[24px] p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300" 
+            className="bg-white rounded-t-[24px] sm:rounded-[24px] p-5 md:p-8 w-full sm:max-w-md shadow-2xl max-h-[90vh] overflow-y-auto" 
             onClick={e => e.stopPropagation()}
           >
-            {/* Modal Header */}
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-slate-800">
-                {editingTask ? 'Edit Task' : 'Create New Task'}
+            <div className="flex justify-between items-center mb-4 md:mb-6">
+              <h2 className="text-base md:text-xl font-bold text-slate-800">
+                {editingTask ? 'Edit Task' : 'New Task'}
               </h2>
               <button 
                 onClick={() => setShowModal(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                className="w-7 md:w-8 h-7 md:h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            {/* Modal Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Title Field */}
+            <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5 md:mb-2">
                   Task Title *
                 </label>
                 <input 
@@ -464,15 +469,14 @@ export default function Tasks() {
                   value={form.title}
                   onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
                   placeholder="Enter task title..."
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
+                  className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-xs md:text-sm transition-all"
                   required
                   autoFocus
                 />
               </div>
 
-              {/* Description Field */}
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5 md:mb-2">
                   Description
                 </label>
                 <textarea 
@@ -480,20 +484,19 @@ export default function Tasks() {
                   onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Add task description (optional)..."
                   rows={3}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none transition-all"
+                  className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-xs md:text-sm resize-none transition-all"
                 />
               </div>
 
-              {/* Priority & Due Date */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 md:gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                  <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5 md:mb-2">
                     Priority
                   </label>
                   <select 
                     value={form.priority}
                     onChange={(e) => setForm(prev => ({ ...prev, priority: e.target.value }))}
-                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
+                    className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-xs md:text-sm transition-all"
                   >
                     <option value="low">Low Priority</option>
                     <option value="medium">Medium Priority</option>
@@ -502,32 +505,31 @@ export default function Tasks() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                  <label className="block text-xs md:text-sm font-bold text-slate-700 mb-1.5 md:mb-2">
                     Due Date
                   </label>
                   <input 
                     type="date" 
                     value={form.due_date}
                     onChange={(e) => setForm(prev => ({ ...prev, due_date: e.target.value }))}
-                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
+                    className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-xs md:text-sm transition-all"
                   />
                 </div>
               </div>
 
-              {/* Modal Actions */}
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-2 md:gap-3 pt-2 md:pt-4">
                 <button 
                   type="button" 
                   onClick={() => setShowModal(false)}
-                  className="flex-1 px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="flex-1 px-4 md:px-6 py-2.5 md:py-3 border border-slate-200 rounded-xl text-xs md:text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit"
-                  className="flex-1 px-6 py-3 bg-[#5A67D8] text-white rounded-xl text-sm font-bold hover:bg-indigo-600 transition-colors shadow-sm"
+                  className="flex-1 px-4 md:px-6 py-2.5 md:py-3 bg-[#5A67D8] text-white rounded-xl text-xs md:text-sm font-bold hover:bg-indigo-600 transition-colors shadow-sm"
                 >
-                  {editingTask ? 'Update Task' : 'Create Task'}
+                  {editingTask ? 'Update' : 'Create'}
                 </button>
               </div>
             </form>
