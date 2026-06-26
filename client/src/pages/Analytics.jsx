@@ -156,22 +156,22 @@ export default function Analytics() {
                 </div>
 
                 {/* Weekly report */}
-                <div className="bg-white rounded-[20px] border border-slate-100 p-6 hover:shadow-xl hover:scale-[1.02] hover:-translate-y-1 hover:border-indigo-200 transition-all duration-300 cursor-pointer">
-                  <p className="text-sm font-bold text-slate-700 mb-4">This Week vs Last Week</p>
-                  <div className="flex items-end gap-6">
-                    <div className="text-center">
-                      <p className="text-3xl font-bold text-indigo-600">{data.weeklyReport.thisWeekCompleted}</p>
-                      <p className="text-xs text-slate-400 font-semibold mt-1">This Week</p>
+                <div className="bg-white rounded-[20px] border border-slate-100 p-4 md:p-6 hover:shadow-xl hover:scale-[1.02] hover:-translate-y-1 hover:border-indigo-200 transition-all duration-300 cursor-pointer">
+                  <p className="text-xs md:text-sm font-bold text-slate-700 mb-3 md:mb-4">This Week vs Last Week</p>
+                  <div className="flex items-center gap-3 md:gap-6">
+                    <div className="text-center flex-1 min-w-0">
+                      <p className="text-xl md:text-3xl font-bold text-indigo-600 truncate">{data.weeklyReport.thisWeekCompleted}</p>
+                      <p className="text-[10px] md:text-xs text-slate-400 font-semibold mt-0.5">This Week</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-3xl font-bold text-slate-400">{data.weeklyReport.lastWeekCompleted}</p>
-                      <p className="text-xs text-slate-400 font-semibold mt-1">Last Week</p>
+                    <div className="text-center flex-1 min-w-0">
+                      <p className="text-xl md:text-3xl font-bold text-slate-400 truncate">{data.weeklyReport.lastWeekCompleted}</p>
+                      <p className="text-[10px] md:text-xs text-slate-400 font-semibold mt-0.5">Last Week</p>
                     </div>
-                    <div className={`ml-auto px-3 py-1.5 rounded-xl text-sm font-bold ${data.weeklyReport.weeklyChange >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>
+                    <div className={`px-2 md:px-3 py-1 md:py-1.5 rounded-xl text-[11px] md:text-sm font-bold whitespace-nowrap flex-shrink-0 ${data.weeklyReport.weeklyChange >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>
                       {data.weeklyReport.weeklyChange >= 0 ? '↑' : '↓'} {Math.abs(data.weeklyReport.weeklyChange)}%
                     </div>
                   </div>
-                  <p className="text-xs text-slate-400 mt-3">
+                  <p className="text-[10px] md:text-xs text-slate-400 mt-2 md:mt-3 truncate">
                     {data.weeklyReport.weeklyChange > 0
                       ? `You completed ${data.weeklyReport.weeklyChange}% more tasks than last week! 🎉`
                       : data.weeklyReport.weeklyChange < 0
@@ -182,36 +182,36 @@ export default function Analytics() {
               </div>
 
               {/* ── WEEKLY PERFORMANCE GRAPH ── */}
-              <div className="bg-white rounded-[20px] border border-slate-100 p-6 mb-8 hover:shadow-xl hover:border-indigo-200 transition-all duration-300">
-                <div className="flex items-center justify-between mb-6">
-                  <p className="text-base font-bold text-slate-800">📈 Weekly Performance</p>
-                  <div className="flex items-center gap-4 text-xs font-semibold">
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-indigo-400 inline-block" />Tasks Created</span>
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-400 inline-block" />Completed</span>
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-pink-400 inline-block" />Notes</span>
+              <div className="bg-white rounded-[20px] border border-slate-100 p-4 md:p-6 mb-8 hover:shadow-xl hover:border-indigo-200 transition-all duration-300">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0 justify-between mb-4 md:mb-6">
+                  <p className="text-sm md:text-base font-bold text-slate-800">📈 Weekly Performance</p>
+                  <div className="flex items-center gap-3 md:gap-4 text-[10px] md:text-xs font-semibold">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-indigo-400 inline-block flex-shrink-0" />Created</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-green-400 inline-block flex-shrink-0" />Done</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full bg-pink-400 inline-block flex-shrink-0" />Notes</span>
                   </div>
                 </div>
-                <div className="flex items-end gap-3 h-40">
+                <div className="flex items-end gap-1.5 md:gap-3 h-32 md:h-40">
                   {data.weeklyData.map((d, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <div className="w-full flex items-end gap-0.5 h-32">
+                    <div key={i} className="flex-1 flex flex-col items-center gap-0.5 md:gap-1 min-w-0">
+                      <div className="w-full flex items-end gap-px md:gap-0.5 h-24 md:h-32">
                         {/* Tasks created */}
-                        <div className="flex-1 bg-indigo-100 rounded-t-md transition-all duration-700 hover:bg-indigo-300 hover:scale-110 relative group"
+                        <div className="flex-1 bg-indigo-100 rounded-t-sm md:rounded-t-md transition-all duration-700 hover:bg-indigo-300 hover:scale-110 relative group"
                           style={{ height: `${Math.max(4, (d.created / maxBar) * 100)}%` }}>
-                          <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-indigo-600 opacity-0 group-hover:opacity-100">{d.created}</span>
+                          <span className="absolute -top-4 md:-top-5 left-1/2 -translate-x-1/2 text-[9px] md:text-[10px] font-bold text-indigo-600 opacity-0 group-hover:opacity-100">{d.created}</span>
                         </div>
                         {/* Completed */}
-                        <div className="flex-1 bg-green-100 rounded-t-md transition-all duration-700 hover:bg-green-300 hover:scale-110 relative group"
+                        <div className="flex-1 bg-green-100 rounded-t-sm md:rounded-t-md transition-all duration-700 hover:bg-green-300 hover:scale-110 relative group"
                           style={{ height: `${Math.max(4, (d.completed / maxBar) * 100)}%` }}>
-                          <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-green-600 opacity-0 group-hover:opacity-100">{d.completed}</span>
+                          <span className="absolute -top-4 md:-top-5 left-1/2 -translate-x-1/2 text-[9px] md:text-[10px] font-bold text-green-600 opacity-0 group-hover:opacity-100">{d.completed}</span>
                         </div>
                         {/* Notes */}
-                        <div className="flex-1 bg-pink-100 rounded-t-md transition-all duration-700 hover:bg-pink-300 hover:scale-110 relative group"
+                        <div className="flex-1 bg-pink-100 rounded-t-sm md:rounded-t-md transition-all duration-700 hover:bg-pink-300 hover:scale-110 relative group"
                           style={{ height: `${Math.max(4, (d.notes / maxBar) * 100)}%` }}>
-                          <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-pink-600 opacity-0 group-hover:opacity-100">{d.notes}</span>
+                          <span className="absolute -top-4 md:-top-5 left-1/2 -translate-x-1/2 text-[9px] md:text-[10px] font-bold text-pink-600 opacity-0 group-hover:opacity-100">{d.notes}</span>
                         </div>
                       </div>
-                      <span className="text-[11px] font-bold text-slate-400">{d.day}</span>
+                      <span className="text-[9px] md:text-[11px] font-bold text-slate-400">{d.day}</span>
                     </div>
                   ))}
                 </div>
