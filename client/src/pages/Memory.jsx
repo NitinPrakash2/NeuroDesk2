@@ -204,36 +204,36 @@ export default function Memory() {
                   <div
                     key={memory.id}
                     onClick={() => setViewingMemory(memory)}
-                    className="bg-white p-6 rounded-[20px] shadow-sm border border-slate-100 hover:shadow-xl hover:border-indigo-200 hover:scale-[1.02] transition-all duration-300 group relative cursor-pointer"
+                    className="bg-white p-4 md:p-6 rounded-[20px] shadow-sm border border-slate-100 hover:shadow-xl hover:border-indigo-200 hover:scale-[1.02] transition-all duration-300 group relative cursor-pointer"
                   >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl ${typeInfo.color} flex items-center justify-center text-lg border`}>
+                    <div className="flex items-start justify-between mb-3 md:mb-4 gap-2">
+                      <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+                        <div className={`w-9 h-9 md:w-10 md:h-10 rounded-xl ${typeInfo.color} flex items-center justify-center text-base md:text-lg border flex-shrink-0`}>
                           {typeInfo.icon}
                         </div>
-                        <div>
-                          <h3 className="text-sm font-bold text-slate-800">{memory.label}</h3>
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${typeInfo.color} border capitalize`}>
+                        <div className="min-w-0">
+                          <h3 className="text-xs md:text-sm font-bold text-slate-800 truncate">{memory.label}</h3>
+                          <span className={`text-[10px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 rounded-full ${typeInfo.color} border capitalize whitespace-nowrap`}>
                             {memory.type}
                           </span>
                         </div>
                       </div>
                       {isMulti && (
-                        <span className="text-[10px] font-bold bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full border border-indigo-100">
+                        <span className="text-[10px] font-bold bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full border border-indigo-100 flex-shrink-0">
                           {lines.length} items
                         </span>
                       )}
                     </div>
 
-                    <div className="mb-3">
+                    <div className="mb-2 md:mb-3">
                       {memory.type === 'password' ? (
-                        <p className="text-sm text-slate-600 font-mono bg-slate-50 p-3 rounded-lg">••••••••</p>
+                        <p className="text-xs md:text-sm text-slate-600 font-mono bg-slate-50 p-2 md:p-3 rounded-lg">••••••••</p>
                       ) : isMulti ? (
-                        <div className="bg-slate-50 p-3 rounded-lg space-y-1.5">
+                        <div className="bg-slate-50 p-2 md:p-3 rounded-lg space-y-1">
                           {lines.slice(0, 3).map((line, idx) => (
-                            <div key={idx} className="flex items-start gap-2 text-xs">
-                              <span className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${idx === lines.length - 1 ? 'bg-indigo-400' : 'bg-slate-300'}`} />
-                              <span className="text-slate-700 font-medium break-all">{line}</span>
+                            <div key={idx} className="flex items-start gap-1.5 text-[11px] md:text-xs">
+                              <span className={`w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0 ${idx === lines.length - 1 ? 'bg-indigo-400' : 'bg-slate-300'}`} />
+                              <span className="text-slate-700 font-medium break-words">{line}</span>
                             </div>
                           ))}
                           {lines.length > 3 && (
@@ -241,34 +241,36 @@ export default function Memory() {
                           )}
                         </div>
                       ) : (
-                        <p className="text-sm text-slate-600 font-mono bg-slate-50 p-3 rounded-lg break-all">{memory.value}</p>
+                        <p className="text-xs md:text-sm text-slate-600 font-mono bg-slate-50 p-2 md:p-3 rounded-lg break-words">{memory.value}</p>
                       )}
                     </div>
 
                     {isMulti && latestLine && (
-                      <div className="mb-3 flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-lg">
+                      <div className="mb-2 md:mb-3 flex items-center gap-1.5 bg-indigo-50 px-2 md:px-3 py-1 md:py-1.5 rounded-lg overflow-hidden">
                         <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
-                        <span className="text-[10px] font-bold text-indigo-500">Latest:</span>
-                        <span className="text-[10px] text-indigo-700 truncate">{latestLine}</span>
+                        <span className="text-[10px] font-bold text-indigo-500 flex-shrink-0">Latest:</span>
+                        <span className="text-[10px] text-indigo-700 truncate min-w-0">{latestLine}</span>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                      <span className="text-xs text-slate-400 font-medium">
+                    <div className="flex items-center justify-between pt-2 md:pt-3 border-t border-slate-100">
+                      <span className="text-[10px] md:text-xs text-slate-400 font-medium">
                         {new Date(memory.created_at).toLocaleDateString()}
                       </span>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-1 opacity-60 md:opacity-0 md:group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                         <button
                           onClick={() => handleEditMemory(memory)}
                           className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"
+                          title="Edit"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         </button>
                         <button
                           onClick={() => deleteMemory(memory.id)}
                           className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                          title="Delete"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                       </div>
                     </div>
