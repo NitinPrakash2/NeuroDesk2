@@ -3,6 +3,20 @@ const bcrypt = require('bcryptjs');
 const { OAuth2Client } = require('google-auth-library');
 const { sql } = require('../config/db');
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+
+const generateOtp = () => crypto.randomInt(100000, 1000000).toString();
+const hashOtp = (otp) => crypto.createHash('sha256').update(String(otp)).digest('hex');
+const isOtpValid = (storedOtp, otp) => {
+  if (!storedOtp || typeof otp !== 'string' || !/^\d{6}$/.test(otp)) return false;
+  const storedHash = Buffer.from(String(storedOtp), 'hex');
+  const providedHash = Buffer.from(hashOtp(otp), 'hex');
+  if (storedHash.length === providedHash.length) return crypto.timingSafeEqual(storedHash, providedHash);
+  return storedOtp === otp; // Temporary compatibility for OTPs issued before this update.
+};
+const escapeHtml = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[char]));
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -84,24 +98,32 @@ const deleteAccount = async (req, res) => {
 
 const contact = async (req, res) => {
   const { subject, message } = req.body;
+  const safeSubject = String(subject || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 120);
+  const safeMessage = String(message || '').trim().slice(0, 5000);
+  if (!safeSubject || !safeMessage) return res.status(400).json({ message: 'Subject and message are required' });
   try {
     const [user] = await sql`SELECT name, email FROM users WHERE id = ${req.user.id}`;
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    const safeNameHtml = escapeHtml(user.name);
+    const safeEmailHtml = escapeHtml(user.email);
+    const safeSubjectHtml = escapeHtml(safeSubject);
+    const safeMessageHtml = escapeHtml(safeMessage).replace(/\r?\n/g, '<br>');
     
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: process.env.EMAIL_USER,
-      subject: `NeuroDesk Support: ${subject}`,
+      subject: `NeuroDesk Support: ${safeSubject}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #5A67D8;">New Support Message</h2>
           <div style="background: #f7fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p><strong>From:</strong> ${user.name}</p>
-            <p><strong>Email:</strong> ${user.email}</p>
-            <p><strong>Subject:</strong> ${subject}</p>
+            <p><strong>From:</strong> ${safeNameHtml}</p>
+            <p><strong>Email:</strong> ${safeEmailHtml}</p>
+            <p><strong>Subject:</strong> ${safeSubjectHtml}</p>
           </div>
           <div style="background: white; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
             <h3 style="color: #2d3748; margin-top: 0;">Message:</h3>
-            <p style="color: #4a5568; line-height: 1.6;">${message}</p>
+            <p style="color: #4a5568; line-height: 1.6;">${safeMessageHtml}</p>
           </div>
           <p style="color: #718096; font-size: 12px; margin-top: 20px;">This message was sent from NeuroDesk Support Form</p>
         </div>
@@ -156,10 +178,11 @@ const forgotPassword = async (req, res) => {
     const [user] = await sql`SELECT id, name, email FROM users WHERE email = ${email}`;
     if (!user) return res.status(404).json({ message: 'No account found with this email' });
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = generateOtp();
+    const otpHash = hashOtp(otp);
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
-    await sql`UPDATE users SET reset_otp = ${otp}, reset_otp_expiry = ${expiry.toISOString()} WHERE id = ${user.id}`;
+    await sql`UPDATE users SET reset_otp = ${otpHash}, reset_otp_expiry = ${expiry.toISOString()} WHERE id = ${user.id}`;
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
@@ -193,7 +216,7 @@ const verifyOtp = async (req, res) => {
   try {
     const [user] = await sql`SELECT reset_otp, reset_otp_expiry FROM users WHERE email = ${email}`;
     if (!user) return res.status(404).json({ message: 'No account found' });
-    if (!user.reset_otp || user.reset_otp !== otp) return res.status(400).json({ message: 'Invalid OTP' });
+    if (!user.reset_otp || !isOtpValid(user.reset_otp, otp)) return res.status(400).json({ message: 'Invalid OTP' });
     if (new Date() > new Date(user.reset_otp_expiry)) return res.status(400).json({ message: 'OTP has expired' });
 
     res.json({ message: 'OTP verified successfully', verified: true });
@@ -207,9 +230,9 @@ const resetPassword = async (req, res) => {
   try {
     const [user] = await sql`SELECT id, reset_otp, reset_otp_expiry FROM users WHERE email = ${email}`;
     if (!user) return res.status(404).json({ message: 'No account found' });
-    if (!user.reset_otp || user.reset_otp !== otp) return res.status(400).json({ message: 'Invalid OTP' });
+    if (!user.reset_otp || !isOtpValid(user.reset_otp, otp)) return res.status(400).json({ message: 'Invalid OTP' });
     if (new Date() > new Date(user.reset_otp_expiry)) return res.status(400).json({ message: 'OTP has expired' });
-    if (password.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    if (typeof password !== 'string' || password.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
 
     const hashed = await bcrypt.hash(password, 10);
     await sql`UPDATE users SET password = ${hashed}, reset_otp = NULL, reset_otp_expiry = NULL WHERE id = ${user.id}`;
@@ -225,10 +248,11 @@ const sendOtp = async (req, res) => {
     const [user] = await sql`SELECT email FROM users WHERE id = ${req.user.id}`;
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = generateOtp();
+    const otpHash = hashOtp(otp);
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
-    await sql`UPDATE users SET reset_otp = ${otp}, reset_otp_expiry = ${expiry.toISOString()} WHERE id = ${req.user.id}`;
+    await sql`UPDATE users SET reset_otp = ${otpHash}, reset_otp_expiry = ${expiry.toISOString()} WHERE id = ${req.user.id}`;
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
@@ -262,9 +286,9 @@ const changePasswordVerified = async (req, res) => {
   try {
     const [user] = await sql`SELECT reset_otp, reset_otp_expiry FROM users WHERE id = ${req.user.id}`;
     if (!user) return res.status(404).json({ message: 'User not found' });
-    if (!user.reset_otp || user.reset_otp !== otp) return res.status(400).json({ message: 'Invalid OTP' });
+    if (!user.reset_otp || !isOtpValid(user.reset_otp, otp)) return res.status(400).json({ message: 'Invalid OTP' });
     if (new Date() > new Date(user.reset_otp_expiry)) return res.status(400).json({ message: 'OTP has expired' });
-    if (newPassword.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    if (typeof newPassword !== 'string' || newPassword.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
 
     const hashed = await bcrypt.hash(newPassword, 10);
     await sql`UPDATE users SET password = ${hashed}, reset_otp = NULL, reset_otp_expiry = NULL WHERE id = ${req.user.id}`;

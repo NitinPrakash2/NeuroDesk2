@@ -19,8 +19,9 @@ const app = express();
 app.use(cors({
   origin: function (origin, callback) {
     const allowed = (process.env.CLIENT_URL || 'http://localhost:5173,https://neuro-desk2.vercel.app').split(',');
-    if (!origin || allowed.includes(origin)) return callback(null, true);
-    callback(null, true);
+    const normalizedAllowed = allowed.map((url) => url.trim()).filter(Boolean);
+    if (!origin || normalizedAllowed.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
   },
   credentials: true
 }));
