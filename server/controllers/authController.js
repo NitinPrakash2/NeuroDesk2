@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const generateOtp = () => crypto.randomInt(100000, 1000000).toString();
 const hashOtp = (otp) => crypto.createHash('sha256').update(String(otp)).digest('hex');
 const isOtpValid = (storedOtp, otp) => {
-  if (!storedOtp || typeof otp !== 'string' || !/^\\d{6}$/.test(otp)) return false;
+  if (!storedOtp || typeof otp !== 'string' || !/^\d{6}$/.test(otp)) return false;
   const storedHash = Buffer.from(String(storedOtp), 'hex');
   const providedHash = Buffer.from(hashOtp(otp), 'hex');
   if (storedHash.length === providedHash.length) return crypto.timingSafeEqual(storedHash, providedHash);
@@ -98,7 +98,7 @@ const deleteAccount = async (req, res) => {
 
 const contact = async (req, res) => {
   const { subject, message } = req.body;
-  const safeSubject = String(subject || '').replace(/[\\r\\n]+/g, ' ').trim().slice(0, 120);
+  const safeSubject = String(subject || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 120);
   const safeMessage = String(message || '').trim().slice(0, 5000);
   if (!safeSubject || !safeMessage) return res.status(400).json({ message: 'Subject and message are required' });
   try {
@@ -107,7 +107,7 @@ const contact = async (req, res) => {
     const safeNameHtml = escapeHtml(user.name);
     const safeEmailHtml = escapeHtml(user.email);
     const safeSubjectHtml = escapeHtml(safeSubject);
-    const safeMessageHtml = escapeHtml(safeMessage).replace(/\\r?\\n/g, '<br>');
+    const safeMessageHtml = escapeHtml(safeMessage).replace(/\r?\n/g, '<br>');
     
     const mailOptions = {
       from: process.env.EMAIL_USER,
